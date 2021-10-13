@@ -3,7 +3,7 @@
 
 ## Overview
 
-This repository contains examples of automations for VMware Image Builder API from GitHub 
+This repository contains examples of automations for VMware Image Builder API from GitHub.
 
 ## Contributing
 
