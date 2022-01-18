@@ -6,13 +6,13 @@ exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_
  *
  * @default '.cp'
  */
-exports.DEFAULT_BASE_FOLDER = '.cp';
+exports.DEFAULT_BASE_FOLDER = ".cp";
 /**
  * Base VIB pipeline file
  *
  * @default 'cp-pipeline.json'
  */
-exports.DEFAULT_PIPELINE = 'cp-pipeline.json';
+exports.DEFAULT_PIPELINE = "cp-pipeline.json";
 /**
  * Max waiting time for an execution graph to complete
  *
