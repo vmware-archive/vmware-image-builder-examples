@@ -2,13 +2,17 @@ import * as core from "@actions/core";
 import * as path from "path";
 import * as constants from "../src/constants";
 import fs from "fs";
+import util from 'util'
 import {
   createPipeline,
+  readPipeline,
   getExecutionGraph,
   getToken,
   loadConfig,
   reset,
   runAction,
+  getRawLogs,
+  loadAllRawLogs,
 } from "../src/main";
 import validator from "validator";
 import { exec } from "child_process";
@@ -16,6 +20,8 @@ import { exec } from "child_process";
 const defaultCspTimeout = 10 * 60 * 1000;
 const root = path.join(__dirname, "..");
 const fixedExecutionGraphId = "d632043b-f74c-4901-8e00-0dbed62f1031";
+const fixedTaskId = '1fd2e795-ea31-4ef2-8483-c536e48dc30d'
+const fixedTaskName = 'linter-packaging'
 const undefinedExecutionGraphId = "aaaaaaaa-f74c-4901-8e00-0dbed62f1031";
 
 const STARTING_ENV = process.env;
@@ -28,6 +34,7 @@ describe("VIB", () => {
     jest.spyOn(core, "info").mockImplementation(() => {});
     jest.spyOn(core, "warning").mockImplementation(() => {});
     process.env["JEST_TESTS"] = "true";
+    let logsFolder = path.join(root, 'logs')
   });
 
   beforeEach(async () => {
@@ -41,8 +48,7 @@ describe("VIB", () => {
   });
 
   afterAll(async () => {});
-
-  /*
+/*
   it("Can get token from CSP", async () => {
     const apiToken = await getToken({ timeout: defaultCspTimeout });
     expect(apiToken).toBeDefined();
@@ -107,7 +113,7 @@ describe("VIB", () => {
     let config = await loadConfig();
     expect(config.pipeline).toEqual(constants.DEFAULT_PIPELINE);
   });
-*/
+
   it("If file does not exist, throw an error", async () => {
     jest.spyOn(core, 'setFailed')
     process.env["INPUT_PIPELINE"] = "prueba.json"
@@ -116,7 +122,7 @@ describe("VIB", () => {
     expect(core.setFailed).toHaveBeenCalledWith(
       "Could not find pipeline at .cp/prueba.json")
   }, 5000)
-  /*
+  
   //TODO: Move these URLs to constant defaults and change tests to verify default is used when no env variable exists
   //      Using defaults is more resilient and friendlier than forcing users to define env vars.
   it("No VIB_PUBLIC_URL throws an error", async () => {
@@ -130,6 +136,25 @@ describe("VIB", () => {
       process.env["VIB_PUBLIC_URL"] = existingApiUrl;
     }
   });
+
+  it('When github sha is not present there will be no sha archive config property', async () => {
+    let config = await loadConfig()
+    expect(config.shaArchive).toBeUndefined()
+  })
+
+  it('When github repository is not present there will be no sha archive config property', async () => {
+    process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
+    let config = await loadConfig()
+    expect(config.shaArchive).toBeUndefined()
+  })
+
+  it('When both github sha and repository are present then there will be sha archive config property set', async () => {
+    process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
+    process.env.GITHUB_REPOSITORY='vmware/vib-action'
+    let config = await loadConfig()
+    expect(config.shaArchive).toBeDefined()
+    expect(config.shaArchive).toEqual(`https://github.com/vmware/vib-action/archive/aacf48f14ed73e4b368ab66abf4742b0e9afae54.zip`)
+  })  
 
   it("Create pipeline returns an execution graph", async () => {
     let config = await loadConfig();
@@ -166,6 +191,80 @@ describe("VIB", () => {
       new Error(`Execution graph ${undefinedExecutionGraphId} not found!`)
     );
   });
+
+  it('Reads a pipeline from filesystem and has some content', async () => {
+    let config = await loadConfig()
+    let pipeline = await readPipeline(config)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).not.toEqual("")
+  })  
+
+  it('Reads a pipeline and does not template sha archive if not needed', async () => {
+    process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
+    process.env.GITHUB_REPOSITORY='vmware/vib-action'
+    let config = await loadConfig()
+    let pipeline = await readPipeline(config)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).not.toContain(config.shaArchive)
+  })  
+
+  it('Reads a pipeline and does not template sha archive if not needed', async () => {
+    process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
+    process.env.GITHUB_REPOSITORY='vmware/vib-action'
+    let config = await loadConfig()
+    let pipeline = await readPipeline(config)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).not.toContain(config.shaArchive)
+  })  
+
+  it('Reads a pipeline and templates sha archive if needed', async () => {
+
+    process.env.INPUT_PIPELINE='cp-sha-archive.json'
+    process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
+    process.env.GITHUB_REPOSITORY='vmware/vib-action'
+    let config = await loadConfig()
+    let pipeline = await readPipeline(config)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).toContain(`"${config.shaArchive}"`)
+
+  })
+
+  it('Reads a pipeline and fails if cannot template sha archive when needed', async () => {
+    process.env.INPUT_PIPELINE='cp-sha-archive.json'
+    jest.spyOn(core, 'setFailed')
+    core.debug("This test should fail")
+    let config = await loadConfig()
+    let pipeline = await readPipeline(config)
+    expect(core.setFailed).toHaveBeenCalledTimes(1)
+    expect(core.setFailed).toHaveBeenCalledWith(
+      'Pipeline cp-sha-archive.json expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.')
+  })       
+*/ 
+  it('Fetches execution graph logs', async () => {
+
+    let config = await loadConfig()
+    let logFile = await getRawLogs(fixedExecutionGraphId, 'linter-packaging', fixedTaskId)
+    expect(logFile).toBeDefined()
+    expect(fs.existsSync(logFile)).toBeTruthy()    
+  })
+
+  it('Fetches multiple execution graph logs ', async () => {
+
+    let config = await loadConfig()
+    let executionGraph = await getExecutionGraph(fixedExecutionGraphId)
+    await loadAllRawLogs(executionGraph)
+
+    // This fixed execution graph has two actions, linter-packaging and trivy
+    // assert that logs folder has two files
+    core.debug(`Reading logs from ${config.logsFolder}`)
+    let logs = fs.readdirSync(config.logsFolder);
+    core.debug(`Logs found ${util.inspect(logs)}`)
+
+    expect(logs.length).toEqual(2)
+    executionGraph['tasks'].forEach(task => {
+      expect(logs.indexOf(`${task['action_id']}-${task['task_id']}.log`)).not.toEqual(-1)
+    });
+  })
 
   // TODO: Add all the failure scenarios. Trying to get an execution graph that does not exist, no public url defined, etc.
   /*
