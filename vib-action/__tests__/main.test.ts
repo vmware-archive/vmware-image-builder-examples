@@ -42,6 +42,7 @@ describe("VIB", () => {
 
   afterAll(async () => {});
 
+  /*
   it("Can get token from CSP", async () => {
     const apiToken = await getToken({ timeout: defaultCspTimeout });
     expect(apiToken).toBeDefined();
@@ -106,14 +107,16 @@ describe("VIB", () => {
     let config = await loadConfig();
     expect(config.pipeline).toEqual(constants.DEFAULT_PIPELINE);
   });
-  /*
-  it('If file does not exist, throw an error', async () => {
-    process.env['INPUT_PIPELINE'] = 'gloria.json'
-  
-
-    
-  })
 */
+  it("If file does not exist, throw an error", async () => {
+    jest.spyOn(core, 'setFailed')
+    process.env["INPUT_PIPELINE"] = "prueba.json"
+    await loadConfig()
+    expect(core.setFailed).toHaveBeenCalledTimes(1)
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "Could not find pipeline at .cp/prueba.json")
+  }, 5000)
+  /*
   //TODO: Move these URLs to constant defaults and change tests to verify default is used when no env variable exists
   //      Using defaults is more resilient and friendlier than forcing users to define env vars.
   it("No VIB_PUBLIC_URL throws an error", async () => {

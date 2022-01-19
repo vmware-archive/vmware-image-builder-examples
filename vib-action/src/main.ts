@@ -234,7 +234,7 @@ export async function loadConfig(): Promise<Config> {
 
   const filename = path.join(folderName, pipeline);
   if (!fs.existsSync(filename)) {
-    throw new Error(`Could not find pipeline at ${baseFolder}/${pipeline}`);
+    core.setFailed(`Could not find pipeline at ${baseFolder}/${pipeline}`);
   }
 
   return {
