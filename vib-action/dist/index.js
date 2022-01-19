@@ -275,7 +275,7 @@ function loadConfig() {
         }
         const filename = path.join(folderName, pipeline);
         if (!fs_1.default.existsSync(filename)) {
-            throw new Error(`Could not find pipeline at ${baseFolder}/${pipeline}`);
+            core.setFailed(`Could not find pipeline at ${baseFolder}/${pipeline}`);
         }
         return {
             pipeline,
