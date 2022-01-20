@@ -171,7 +171,7 @@ export function displayExecutionGraph(
     }
     
     recordedStatuses[taskId] = taskStatus;
-  });  
+  }  
 }
 
 export async function getExecutionGraph(
@@ -326,6 +326,11 @@ export async function loadAllRawLogs(
   return logs
 }
 
+function getDownloadVibPublicUrl(): string|undefined {
+
+  return (typeof process.env.VIB_PUBLIC_URL != 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL
+}
+
 export async function getRawLogs(
   executionGraphId: string,
   taskName: string,
@@ -334,7 +339,7 @@ export async function getRawLogs(
   if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
     throw new Error('VIB_PUBLIC_URL environment variable not found.')
   }
-  core.info(`Downloading logs for task ${taskName} from ${process.env.VIB_PUBLIC_URL}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`)
+  core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`)
 
   const config = await loadConfig()
   const logFile = path.join(config.logsFolder, `${taskName}-${taskId}.log`)
@@ -406,7 +411,7 @@ export async function loadConfig(): Promise<Config> {
     baseFolder,
     shaArchive,
     logsFolder,
-    targetPlatform: process.env.TARGET_PLATFORM 
+    targetPlatform: process.env.TARGET_PLATFORM
   };
 }
 

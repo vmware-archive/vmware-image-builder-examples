@@ -132,7 +132,7 @@ function runAction() {
 exports.runAction = runAction;
 function displayExecutionGraph(executionGraph) {
     let recordedStatuses = {};
-    executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
+    for (const task of executionGraph['tasks']) {
         const taskId = task['task_id'];
         let taskName = task['action_id'];
         const taskStatus = task['status'];
@@ -163,7 +163,7 @@ function displayExecutionGraph(executionGraph) {
             }
         }
         recordedStatuses[taskId] = taskStatus;
-    }));
+    }
 }
 exports.displayExecutionGraph = displayExecutionGraph;
 function getExecutionGraph(executionGraphId) {
@@ -291,25 +291,28 @@ function loadAllRawLogs(executionGraph) {
     return __awaiter(this, void 0, void 0, function* () {
         let logs = [];
         //TODO assertions
-        executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
+        for (const task of executionGraph['tasks']) {
             const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
             core.debug(`Downloaded file ${logFile}`);
             logs.push(logFile);
-        }));
+        }
         return logs;
     });
 }
 exports.loadAllRawLogs = loadAllRawLogs;
+function getDownloadVibPublicUrl() {
+    return (typeof process.env.VIB_PUBLIC_URL != 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL;
+}
 function getRawLogs(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
             throw new Error('VIB_PUBLIC_URL environment variable not found.');
         }
-        core.info(`Downloading logs for task ${taskName} from ${process.env.VIB_PUBLIC_URL}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
+        core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
         const config = yield loadConfig();
         const logFile = path.join(config.logsFolder, `${taskName}-${taskId}.log`);
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
-        core.debug(`Wills tore logs at ${logFile}`);
+        core.debug(`Will store logs at ${logFile}`);
         try {
             const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
