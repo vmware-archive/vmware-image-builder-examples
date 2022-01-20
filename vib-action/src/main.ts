@@ -137,7 +137,7 @@ export function displayExecutionGraph(
 ): void {
   let recordedStatuses = {}
 
-  executionGraph['tasks'].forEach(async task => {
+  for (const task of executionGraph['tasks']) {
 
     const taskId = task['task_id']
     let taskName = task['action_id']
@@ -318,12 +318,11 @@ export async function loadAllRawLogs(
   let logs:string[] = []
 
   //TODO assertions
-  executionGraph['tasks'].forEach(async task => {
+  for (const task of executionGraph['tasks']) {
     const logFile = await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
     core.debug(`Downloaded file ${logFile}`)
     logs.push(logFile)
-  });
-
+  }
   return logs
 }
 
@@ -341,7 +340,7 @@ export async function getRawLogs(
   const logFile = path.join(config.logsFolder, `${taskName}-${taskId}.log`)
   const apiToken = await getToken({timeout: constants.CSP_TIMEOUT})
 
-  core.debug(`Wills tore logs at ${logFile}`)
+  core.debug(`Will store logs at ${logFile}`)
   try {
     const response = await vibClient.get(
       `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`,
