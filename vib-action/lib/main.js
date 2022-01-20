@@ -114,41 +114,36 @@ function runAction() {
 exports.runAction = runAction;
 function displayExecutionGraph(executionGraph) {
     executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
-        core.debug(`displaying status for task ${task['task_id']}. Status is ${taskStatus[task['task_id']]}`);
-        if (typeof taskStatus[task['task_id']] === "undefined") {
-            core.info(`Task ${task['action_id']} with id ${task['task_id']} is now in status ${task['status']}`);
-            switch (task['status']) {
+        const taskId = task['task_id'];
+        let taskName = task['action_id'];
+        const taskStatus = task['status'];
+        const recordedStatus = taskStatus[taskId];
+        if (taskName === 'deployment') {
+            // find the associated task
+            let next = executionGraph['tasks'].find(it => it['task_id'] === task['next_tasks'][0]);
+            taskName = `${taskName} ( ${next['action_id']} )`;
+        }
+        else if (taskName === 'undeployment') {
+            // find the associated task
+            let prev = executionGraph['tasks'].find(it => it['task_id'] === task['previous_tasks'][0]);
+            taskName = `${taskName} ( ${prev['action_id']} )`;
+        }
+        if (typeof recordedStatus === "undefined" || taskStatus != recordedStatus) {
+            core.info(`Task ${taskName} is now in status ${taskStatus}`);
+            switch (taskStatus) {
                 case 'FAILED':
-                    core.error(`Task ${task['action_id']} with id ${task['task_id']} has failed`);
+                    core.error(`Task ${taskName} has failed`);
                     break;
                 case 'SKIPPED':
-                    core.warning(`Task ${task['action_id']} with id ${task['task_id']} has been skipped`);
+                    core.warning(`Task ${taskName} has been skipped`);
                     break;
                 case 'SUCCEEDED':
                     //TODO: Use coloring to print this in green
-                    core.info(`Task ${task['action_id']} with id ${task['task_id']} has finished successfully`);
+                    core.info(`Task ${taskName} has finished successfully`);
                     break;
             }
         }
-        else {
-            if (taskStatus[task['task_id']] !== task['status']) {
-                core.info(`Task ${task['action_id']} with id ${task['task_id']} has moved to status ${task['status']}`);
-                //TODO: This switch is copy-pasted from above. Move to its own method.
-                switch (task['status']) {
-                    case 'FAILED':
-                        core.error(`Task ${task['action_id']} with id ${task['task_id']} has failed`);
-                        break;
-                    case 'SKIPPED':
-                        core.warning(`Task ${task['action_id']} with id ${task['task_id']} has been skipped`);
-                        break;
-                    case 'SUCCEEDED':
-                        //TODO: Use coloring to print this in green
-                        core.info(`Task ${task['action_id']} with id ${task['task_id']} has finished successfully`);
-                        break;
-                }
-            }
-        }
-        taskStatus[task['task_id']] = task['status'];
+        taskStatus[taskId] = taskStatus;
     }));
 }
 exports.displayExecutionGraph = displayExecutionGraph;
