@@ -34,6 +34,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.reset = exports.loadConfig = exports.getRawLogs = exports.loadAllRawLogs = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
 const constants = __importStar(require("./constants"));
 const core = __importStar(require("@actions/core"));
+const artifact = __importStar(require("@actions/artifact"));
 const path = __importStar(require("path"));
 const axios_1 = __importDefault(require("axios"));
 const axios_2 = __importDefault(require("axios"));
@@ -102,6 +103,23 @@ function runAction() {
                 else {
                     core.info(`Execution graph ${executionGraphId} has completed successfully.`);
                 }
+            }
+            core.info("Downloading all logs");
+            let logFiles = yield loadAllRawLogs(executionGraph);
+            core.debug("Uploading logs as artifacts to GitHub");
+            core.debug(`Will upload the following files: ${util_1.default.inspect(logFiles)}`);
+            core.debug(`Root directory: ${config.logsFolder}`);
+            const artifactClient = artifact.create();
+            const artifactName = `assets-${process.env.GITHUB_JOB}`;
+            const rootDirectory = config.logsFolder;
+            const options = {
+                continueOnError: true
+            };
+            const uploadResult = yield artifactClient.uploadArtifact(artifactName, logFiles, rootDirectory, options);
+            core.debug(`Got response from GitHub artifacts API: ${util_1.default.inspect(uploadResult)}`);
+            core.info(`Uploaded artifact: ${uploadResult.artifactName}`);
+            if (uploadResult.failedItems.length > 0) {
+                core.warning(`The following files could not be uploaded: ${util_1.default.inspect(uploadResult.failedItems)}`);
             }
             return executionGraph;
         }
@@ -271,10 +289,13 @@ function getToken(input) {
 exports.getToken = getToken;
 function loadAllRawLogs(executionGraph) {
     return __awaiter(this, void 0, void 0, function* () {
+        let logs = [];
         //TODO assertions
         executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
-            yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+            const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+            logs.push(logFile);
         }));
+        return logs;
     });
 }
 exports.loadAllRawLogs = loadAllRawLogs;

@@ -1,5 +1,6 @@
 import * as constants from "./constants";
 import * as core from "@actions/core";
+import * as artifact from "@actions/artifact";
 import * as path from "path";
 import axios from "axios";
 import request from "axios";
@@ -103,6 +104,26 @@ export async function runAction(): Promise<any> {
           `Execution graph ${executionGraphId} has completed successfully.`
         );
       }
+    }
+
+    core.info("Downloading all logs")
+    let logFiles = await loadAllRawLogs(executionGraph)
+
+    core.debug("Uploading logs as artifacts to GitHub")
+    core.debug(`Will upload the following files: ${util.inspect(logFiles)}`)
+    core.debug(`Root directory: ${config.logsFolder}`)
+    const artifactClient = artifact.create()
+    const artifactName = `assets-${process.env.GITHUB_JOB}`
+    const rootDirectory = config.logsFolder
+    const options = {
+        continueOnError: true
+    }
+    
+    const uploadResult = await artifactClient.uploadArtifact(artifactName, logFiles, rootDirectory, options)
+    core.debug(`Got response from GitHub artifacts API: ${util.inspect(uploadResult)}`)
+    core.info(`Uploaded artifact: ${uploadResult.artifactName}`)
+    if (uploadResult.failedItems.length > 0) {
+      core.warning(`The following files could not be uploaded: ${util.inspect(uploadResult.failedItems)}`)
     }
 
     return executionGraph;
@@ -292,12 +313,17 @@ export async function getToken(input: CspInput): Promise<string> {
 
 export async function loadAllRawLogs(
   executionGraph: Object
-): Promise<void> {
+): Promise<string[]> {
+
+  let logs:string[] = []
 
   //TODO assertions
   executionGraph['tasks'].forEach(async task => {
-    await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
+    const logFile = await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
+    logs.push(logFile)
   });
+
+  return logs
 }
 
 export async function getRawLogs(
