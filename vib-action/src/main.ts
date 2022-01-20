@@ -328,7 +328,7 @@ export async function loadAllRawLogs(
 
 function getDownloadVibPublicUrl(): string|undefined {
 
-  return (typeof process.env.VIB_PUBLIC_URL != 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL
+  return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL
 }
 
 export async function getRawLogs(

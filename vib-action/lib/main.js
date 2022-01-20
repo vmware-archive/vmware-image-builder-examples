@@ -301,7 +301,7 @@ function loadAllRawLogs(executionGraph) {
 }
 exports.loadAllRawLogs = loadAllRawLogs;
 function getDownloadVibPublicUrl() {
-    return (typeof process.env.VIB_PUBLIC_URL != 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL;
+    return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL;
 }
 function getRawLogs(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
