@@ -66,18 +66,15 @@ describe("VIB", () => {
     const apiToken2 = await getToken({ timeout: defaultCspTimeout });
     expect(apiToken2).not.toEqual(apiToken);
   });
-
+*/
   it("No CSP_API_TOKEN throws an error", async () => {
-    let existingToken = process.env["CSP_API_TOKEN"];
-    try {
-      delete process.env["CSP_API_TOKEN"];
-      expect(getToken).rejects.toThrow(
-        new Error("CSP_API_TOKEN secret not found.")
-      );
-    } finally {
-      process.env["CSP_API_TOKEN"] = existingToken;
-    }
-  });
+    jest.spyOn(core, 'setFailed')
+    await getToken({ timeout: defaultCspTimeout })
+    expect(core.setFailed).toHaveBeenCalledTimes(1)
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "CSP_API_TOKEN secret not found.")
+  }, 5000);
+/*
 
   it("No CSP_API_URL throws an error", async () => {
     let existingApiUrl = process.env["CSP_API_URL"];
@@ -107,7 +104,7 @@ describe("VIB", () => {
     let config = await loadConfig();
     expect(config.pipeline).toEqual(constants.DEFAULT_PIPELINE);
   });
-*/
+
   it("If file does not exist, throw an error", async () => {
     jest.spyOn(core, 'setFailed')
     process.env["INPUT_PIPELINE"] = "prueba.json"
@@ -116,9 +113,10 @@ describe("VIB", () => {
     expect(core.setFailed).toHaveBeenCalledWith(
       "Could not find pipeline at .cp/prueba.json")
   }, 5000)
-  /*
+  
   //TODO: Move these URLs to constant defaults and change tests to verify default is used when no env variable exists
   //      Using defaults is more resilient and friendlier than forcing users to define env vars.
+  
   it("No VIB_PUBLIC_URL throws an error", async () => {
     let existingApiUrl = process.env["VIB_PUBLIC_URL"];
     try {
