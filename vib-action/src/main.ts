@@ -27,6 +27,7 @@ interface Config {
   baseFolder: string
   shaArchive: string
   logsFolder: string
+  targetPlatform: string | undefined
 }
 
 interface CspToken {
@@ -39,7 +40,6 @@ interface CspInput {
 }
 
 let cachedCspToken: CspToken | null = null;
-
 let taskStatus = {}
 
 async function run(): Promise<void> {
@@ -233,6 +233,17 @@ export async function readPipeline(config: Config): Promise<string> {
     }
   }
 
+  //TODO: Add tests for default target platform input variable
+  if (config.targetPlatform) {
+    pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform);
+  } else {
+    if (pipeline.indexOf("{TARGET_PLATFORM}") !== -1) {
+      core.warning(`Pipeline ${config.pipeline} expects TARGET_PLATFORM variable but could not be found on environment.`)
+      core.warning(`Defaulting to target platform${constants.DEFAULT_TARGET_PLATFORM}`)
+      pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, constants.DEFAULT_TARGET_PLATFORM);
+    }
+  }
+
   core.debug(`Sending pipeline: ${util.inspect(pipeline)}`)
 
   return pipeline
@@ -331,7 +342,7 @@ export async function loadConfig(): Promise<Config> {
   } else {
     shaArchive = `https://github.com/${process.env.GITHUB_REPOSITORY}/archive/${process.env.GITHUB_SHA }.zip`
   }
-
+  
   let pipeline = core.getInput("pipeline");
   let baseFolder = core.getInput("config");
 
@@ -364,7 +375,8 @@ export async function loadConfig(): Promise<Config> {
     pipeline,
     baseFolder,
     shaArchive,
-    logsFolder
+    logsFolder,
+    targetPlatform: process.env.TARGET_PLATFORM 
   };
 }
 

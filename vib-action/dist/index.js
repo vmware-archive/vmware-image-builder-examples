@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -46,6 +46,12 @@ var EndStates;
     EndStates["SUCCEEDED"] = "SUCCEEDED";
     EndStates["FAILED"] = "FAILED";
 })(EndStates = exports.EndStates || (exports.EndStates = {}));
+/**
+ * Default target platform to be used if the user does not provide one
+ *
+ * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
+ */
+exports.DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1'; // GKE
 //# sourceMappingURL=constants.js.map
 
 /***/ }),
@@ -87,7 +93,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.loadAllRawLogs = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraph = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.loadAllRawLogs = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
 const constants = __importStar(__nccwpck_require__(5105));
 const core = __importStar(__nccwpck_require__(2186));
 const path = __importStar(__nccwpck_require__(1017));
@@ -109,6 +115,7 @@ const vibClient = axios_1.default.create({
     headers: { "Content-Type": "application/json" },
 });
 let cachedCspToken = null;
+let taskStatus = {};
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         //TODO: Refactor so we don't need to do this check
@@ -166,6 +173,46 @@ function runAction() {
     });
 }
 exports.runAction = runAction;
+function displayExecutionGraph(executionGraph) {
+    executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
+        core.debug(`displaying status for task ${task['task_id']}. Status is ${taskStatus[task['task_id']]}`);
+        if (typeof taskStatus[task['task_id']] === "undefined") {
+            core.info(`Task ${task['action_id']} with id ${task['task_id']} is now in status ${task['status']}`);
+            switch (task['status']) {
+                case 'FAILED':
+                    core.error(`Task ${task['action_id']} with id ${task['task_id']} has failed`);
+                    break;
+                case 'SKIPPED':
+                    core.warning(`Task ${task['action_id']} with id ${task['task_id']} has been skipped`);
+                    break;
+                case 'SUCCEEDED':
+                    //TODO: Use coloring to print this in green
+                    core.info(`Task ${task['action_id']} with id ${task['task_id']} has finished successfully`);
+                    break;
+            }
+        }
+        else {
+            if (taskStatus[task['task_id']] !== task['status']) {
+                core.info(`Task ${task['action_id']} with id ${task['task_id']} has moved to status ${task['status']}`);
+                //TODO: This switch is copy-pasted from above. Move to its own method.
+                switch (task['status']) {
+                    case 'FAILED':
+                        core.error(`Task ${task['action_id']} with id ${task['task_id']} has failed`);
+                        break;
+                    case 'SKIPPED':
+                        core.warning(`Task ${task['action_id']} with id ${task['task_id']} has been skipped`);
+                        break;
+                    case 'SUCCEEDED':
+                        //TODO: Use coloring to print this in green
+                        core.info(`Task ${task['action_id']} with id ${task['task_id']} has finished successfully`);
+                        break;
+                }
+            }
+        }
+        taskStatus[task['task_id']] = task['status'];
+    }));
+}
+exports.displayExecutionGraph = displayExecutionGraph;
 function getExecutionGraph(executionGraphId) {
     return __awaiter(this, void 0, void 0, function* () {
         core.debug(`Getting execution graph with id ${executionGraphId}`);
@@ -176,7 +223,9 @@ function getExecutionGraph(executionGraphId) {
         try {
             const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
-            return response.data;
+            let executionGraph = response.data;
+            displayExecutionGraph(executionGraph);
+            return executionGraph;
         }
         catch (err) {
             if (axios_2.default.isAxiosError(err) && err.response) {
@@ -235,6 +284,17 @@ function readPipeline(config) {
         else {
             if (pipeline.indexOf("{SHA_ARCHIVE}") !== -1) {
                 core.setFailed(`Pipeline ${config.pipeline} expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.`);
+            }
+        }
+        //TODO: Add tests for default target platform input variable
+        if (config.targetPlatform) {
+            pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform);
+        }
+        else {
+            if (pipeline.indexOf("{TARGET_PLATFORM}") !== -1) {
+                core.warning(`Pipeline ${config.pipeline} expects TARGET_PLATFORM variable but could not be found on environment.`);
+                core.warning(`Defaulting to target platform${constants.DEFAULT_TARGET_PLATFORM}`);
+                pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, constants.DEFAULT_TARGET_PLATFORM);
             }
         }
         core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);
@@ -351,7 +411,8 @@ function loadConfig() {
             pipeline,
             baseFolder,
             shaArchive,
-            logsFolder
+            logsFolder,
+            targetPlatform: process.env.TARGET_PLATFORM
         };
     });
 }
