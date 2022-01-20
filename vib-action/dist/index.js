@@ -175,11 +175,12 @@ function runAction() {
 }
 exports.runAction = runAction;
 function displayExecutionGraph(executionGraph) {
+    let recordedStatuses = {};
     executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
         const taskId = task['task_id'];
         let taskName = task['action_id'];
         const taskStatus = task['status'];
-        const recordedStatus = taskStatus[taskId];
+        const recordedStatus = recordedStatuses[taskId];
         if (taskName === 'deployment') {
             // find the associated task
             let next = executionGraph['tasks'].find(it => it['task_id'] === task['next_tasks'][0]);
@@ -205,7 +206,7 @@ function displayExecutionGraph(executionGraph) {
                     break;
             }
         }
-        recordedStatus[taskId] = taskStatus;
+        recordedStatuses[taskId] = taskStatus;
     }));
 }
 exports.displayExecutionGraph = displayExecutionGraph;

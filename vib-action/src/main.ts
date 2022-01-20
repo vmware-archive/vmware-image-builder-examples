@@ -114,11 +114,14 @@ export async function runAction(): Promise<any> {
 export function displayExecutionGraph(
   executionGraph: Object
 ): void {
+  let recordedStatuses = {}
+
   executionGraph['tasks'].forEach(async task => {
+
     const taskId = task['task_id']
     let taskName = task['action_id']
     const taskStatus = task['status']
-    const recordedStatus = taskStatus[taskId]
+    const recordedStatus = recordedStatuses[taskId]
 
     if (taskName === 'deployment') {
       // find the associated task
@@ -146,7 +149,7 @@ export function displayExecutionGraph(
       }
     }
     
-    recordedStatus[taskId] = taskStatus;
+    recordedStatuses[taskId] = taskStatus;
   });  
 }
 
