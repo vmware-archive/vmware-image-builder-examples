@@ -104,14 +104,15 @@ const util_1 = __importDefault(__nccwpck_require__(3837));
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
     : path.join(__dirname, "..");
+//TODO timeouts in these two clients should be way shorter
 const cspClient = axios_1.default.create({
     baseURL: `${process.env.CSP_API_URL}`,
-    timeout: 3000,
+    timeout: 10000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 const vibClient = axios_1.default.create({
     baseURL: `${process.env.VIB_PUBLIC_URL}`,
-    timeout: 3000,
+    timeout: 10000,
     headers: { "Content-Type": "application/json" },
 });
 let cachedCspToken = null;
