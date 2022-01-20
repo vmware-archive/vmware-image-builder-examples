@@ -205,7 +205,7 @@ function displayExecutionGraph(executionGraph) {
                     break;
             }
         }
-        taskStatus[taskId] = taskStatus;
+        recordedStatus[taskId] = taskStatus;
     }));
 }
 exports.displayExecutionGraph = displayExecutionGraph;

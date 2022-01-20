@@ -146,7 +146,7 @@ export function displayExecutionGraph(
       }
     }
     
-    taskStatus[taskId] = taskStatus;
+    recordedStatus[taskId] = taskStatus;
   });  
 }
 
