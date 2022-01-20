@@ -13,6 +13,7 @@ import {
   runAction,
   getRawLogs,
   loadAllRawLogs,
+  displayExecutionGraph,
 } from "../src/main";
 import validator from "validator";
 import { exec } from "child_process";
@@ -239,7 +240,7 @@ describe("VIB", () => {
     expect(core.setFailed).toHaveBeenCalledWith(
       'Pipeline cp-sha-archive.json expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.')
   })       
-*/ 
+
   it('Fetches execution graph logs', async () => {
 
     let config = await loadConfig()
@@ -265,9 +266,8 @@ describe("VIB", () => {
       expect(logs.indexOf(`${task['action_id']}-${task['task_id']}.log`)).not.toEqual(-1)
     });
   })
-
+*/
   // TODO: Add all the failure scenarios. Trying to get an execution graph that does not exist, no public url defined, etc.
-  /*
   it('Runs the GitHub action and succeeds', async () => {
     let executionGraph = await runAction()
 
@@ -277,7 +277,6 @@ describe("VIB", () => {
     expect(executionGraph['status']).toEqual('SUCCEEDED')
   }, 120000) // long test, processing this execution graph ( lint, trivy ) might take up to 2 minutes.
 
-*/
 
   //TODO: Worth mocking axios and returning custom execution graphs to test the whole flows?
   //      Integration tests are slow

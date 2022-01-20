@@ -31,7 +31,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reset = exports.loadConfig = exports.getToken = exports.createPipeline = exports.getExecutionGraph = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.loadAllRawLogs = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraph = exports.runAction = void 0;
 const constants = __importStar(require("./constants"));
 const core = __importStar(require("@actions/core"));
 const path = __importStar(require("path"));
@@ -144,10 +144,7 @@ function createPipeline(config) {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const folderName = path.join(root, config.baseFolder);
-            const filename = path.join(folderName, config.pipeline);
-            core.debug(`Reading pipeline file from ${filename}`);
-            const pipeline = fs_1.default.readFileSync(filename).toString();
+            const pipeline = yield readPipeline(config);
             core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);
             //TODO: Define and replace different placeholders: e.g. for values, content folders (goss, jmeter), etc.
             const response = yield vibClient.post("/v1/pipelines", pipeline, {
@@ -170,9 +167,27 @@ function createPipeline(config) {
     });
 }
 exports.createPipeline = createPipeline;
+function readPipeline(config) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const folderName = path.join(root, constants.DEFAULT_BASE_FOLDER);
+        const filename = path.join(folderName, config.pipeline);
+        core.debug(`Reading pipeline file from ${filename}`);
+        let pipeline = fs_1.default.readFileSync(filename).toString();
+        if (config.shaArchive) {
+            pipeline = pipeline.replace(/{SHA_ARCHIVE}/g, config.shaArchive);
+        }
+        else {
+            if (pipeline.indexOf("{SHA_ARCHIVE}") !== -1) {
+                core.setFailed(`Pipeline ${config.pipeline} expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.`);
+            }
+        }
+        core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);
+        return pipeline;
+    });
+}
+exports.readPipeline = readPipeline;
 function getToken(input) {
     return __awaiter(this, void 0, void 0, function* () {
-        //const config = loadConfig()
         core.debug(`Checking CSP API token... Cached token: ${cachedCspToken}`);
         core.debug(typeof process.env.CSP_API_TOKEN);
         if (typeof process.env.CSP_API_TOKEN === "undefined") {
@@ -203,8 +218,57 @@ function getToken(input) {
     });
 }
 exports.getToken = getToken;
+function loadAllRawLogs(executionGraph) {
+    return __awaiter(this, void 0, void 0, function* () {
+        //TODO assertions
+        executionGraph['tasks'].forEach((task) => __awaiter(this, void 0, void 0, function* () {
+            yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+        }));
+    });
+}
+exports.loadAllRawLogs = loadAllRawLogs;
+function getRawLogs(executionGraphId, taskName, taskId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.debug(`Getting logs for execution graph id ${executionGraphId} and task id ${taskId}`);
+        if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
+            throw new Error('VIB_PUBLIC_URL environment variable not found.');
+        }
+        const config = yield loadConfig();
+        const logFile = path.join(config.logsFolder, `${taskName}-${taskId}.log`);
+        const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
+        try {
+            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            //TODO: Handle response codes
+            fs_1.default.writeFileSync(logFile, response.data);
+            return logFile;
+        }
+        catch (err) {
+            if (axios_1.default.isAxiosError(err) && err.response) {
+                if (err.response.status === 404) {
+                    core.debug(`Could not find execution graph with id ${executionGraphId}`);
+                }
+                throw err;
+            }
+            else {
+                throw err;
+            }
+        }
+    });
+}
+exports.getRawLogs = getRawLogs;
 function loadConfig() {
     return __awaiter(this, void 0, void 0, function* () {
+        let shaArchive;
+        // Warn on rqeuirements for HELM_CHART variable replacement
+        if (typeof process.env.GITHUB_SHA === 'undefined') {
+            core.warning('Could not find a valid GitHub SHA on environment. Is the GitHub action running as part of PR or Push flows?');
+        }
+        else if (typeof process.env.GITHUB_REPOSITORY === 'undefined') {
+            core.warning('Could not find a valid GitHub Repository on environment. Is the GitHub action running as part of PR or Push flows?');
+        }
+        else {
+            shaArchive = `https://github.com/${process.env.GITHUB_REPOSITORY}/archive/${process.env.GITHUB_SHA}.zip`;
+        }
         let pipeline = core.getInput("pipeline");
         let baseFolder = core.getInput("config");
         if (pipeline === "") {
@@ -219,11 +283,19 @@ function loadConfig() {
         }
         const filename = path.join(folderName, pipeline);
         if (!fs_1.default.existsSync(filename)) {
-            throw new Error(`Could not find pipeline at ${baseFolder}/${pipeline}`);
+            core.setFailed(`Could not find pipeline at ${baseFolder}/${pipeline}`);
+        }
+        const logsFolder = path.join(root, '/logs');
+        core.debug(`Logs folder located at ${logsFolder}`);
+        if (!fs_1.default.existsSync(logsFolder)) {
+            core.debug(`Creating logs folder ${logsFolder}`);
+            fs_1.default.mkdirSync(logsFolder);
         }
         return {
             pipeline,
             baseFolder,
+            shaArchive,
+            logsFolder
         };
     });
 }

@@ -40,6 +40,8 @@ interface CspInput {
 
 let cachedCspToken: CspToken | null = null;
 
+let taskStatus = {}
+
 async function run(): Promise<void> {
   //TODO: Refactor so we don't need to do this check
   if (process.env["JEST_TESTS"] === "true") return; // skip running logic when importing class for npm test
@@ -107,6 +109,47 @@ export async function runAction(): Promise<any> {
   }
 }
 
+export function displayExecutionGraph(
+  executionGraph: Object
+): void {
+  executionGraph['tasks'].forEach(async task => {
+    core.debug(`displaying status for task ${task['task_id']}. Status is ${taskStatus[task['task_id']]}`)
+    if (typeof taskStatus[task['task_id']] === "undefined") {
+      core.info(`Task ${task['action_id']} with id ${task['task_id']} is now in status ${task['status']}`)
+      switch(task['status']) {
+        case 'FAILED': 
+          core.error(`Task ${task['action_id']} with id ${task['task_id']} has failed`)
+          break
+        case 'SKIPPED':
+          core.warning(`Task ${task['action_id']} with id ${task['task_id']} has been skipped`)
+          break
+        case 'SUCCEEDED':
+          //TODO: Use coloring to print this in green
+          core.info(`Task ${task['action_id']} with id ${task['task_id']} has finished successfully`)
+          break  
+      }
+    } else {
+      if (taskStatus[task['task_id']] !== task['status']) {
+        core.info(`Task ${task['action_id']} with id ${task['task_id']} has moved to status ${task['status']}`)
+        //TODO: This switch is copy-pasted from above. Move to its own method.
+        switch(task['status']) {
+          case 'FAILED': 
+            core.error(`Task ${task['action_id']} with id ${task['task_id']} has failed`)
+            break
+          case 'SKIPPED':
+            core.warning(`Task ${task['action_id']} with id ${task['task_id']} has been skipped`)
+            break
+          case 'SUCCEEDED':
+            //TODO: Use coloring to print this in green
+            core.info(`Task ${task['action_id']} with id ${task['task_id']} has finished successfully`)
+            break  
+        }
+      }
+    }
+    taskStatus[task['task_id']] = task['status'];
+  });  
+}
+
 export async function getExecutionGraph(
   executionGraphId: string
 ): Promise<Object> {
@@ -122,7 +165,9 @@ export async function getExecutionGraph(
       { headers: { Authorization: `Bearer ${apiToken}` } }
     );
     //TODO: Handle response codes
-    return response.data;
+    let executionGraph = response.data;
+    displayExecutionGraph(executionGraph)
+    return executionGraph
   } catch (err) {
     if (request.isAxiosError(err) && err.response) {
       if (err.response.status == 404) {
