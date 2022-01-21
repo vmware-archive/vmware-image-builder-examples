@@ -31,7 +31,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.loadAllRawLogs = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
 const constants = __importStar(require("./constants"));
 const core = __importStar(require("@actions/core"));
 const artifact = __importStar(require("@actions/artifact"));
@@ -40,6 +40,7 @@ const axios_1 = __importDefault(require("axios"));
 const axios_2 = __importDefault(require("axios"));
 const fs_1 = __importDefault(require("fs"));
 const util_1 = __importDefault(require("util"));
+const sanitize_1 = require("./sanitize");
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
     : path.join(__dirname, "..");
@@ -88,9 +89,15 @@ function runAction() {
                 yield sleep(constants.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL);
                 executionGraph = yield getExecutionGraph(executionGraphId);
             }
-            core.info(`Generating action outputs.`);
+            const result = yield getExecutionGraphResult(executionGraphId);
+            core.info("Processing execution graph result.");
+            if (!result['passed']) {
+                core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.');
+            }
+            core.info("Generating action outputs.");
             //TODO: Improve existing tests to verify that outputs are set
             core.setOutput("execution-graph", executionGraph);
+            core.setOutput("result", result);
             // TODO: Fetch logs and results
             // TODO: Upload logs and results as artifacts
             if (!Object.values(constants.EndStates).includes(executionGraph["status"])) {
@@ -105,17 +112,17 @@ function runAction() {
                 }
             }
             core.info("Downloading all logs");
-            let logFiles = yield loadAllRawLogs(executionGraph);
+            let files = yield loadAllData(executionGraph);
             core.debug("Uploading logs as artifacts to GitHub");
-            core.debug(`Will upload the following files: ${util_1.default.inspect(logFiles)}`);
-            core.debug(`Root directory: ${config.logsFolder}`);
+            core.debug(`Will upload the following files: ${util_1.default.inspect(files)}`);
+            core.debug(`Root directory: ${getLogsFolder(executionGraphId)}`);
             const artifactClient = artifact.create();
             const artifactName = `assets-${process.env.GITHUB_JOB}`;
-            const rootDirectory = config.logsFolder;
             const options = {
                 continueOnError: true
             };
-            const uploadResult = yield artifactClient.uploadArtifact(artifactName, logFiles, rootDirectory, options);
+            const executionGraphFolder = getFolder(executionGraphId);
+            const uploadResult = yield artifactClient.uploadArtifact(artifactName, files, executionGraphFolder, options);
             core.debug(`Got response from GitHub artifacts API: ${util_1.default.inspect(uploadResult)}`);
             core.info(`Uploaded artifact: ${uploadResult.artifactName}`);
             if (uploadResult.failedItems.length > 0) {
@@ -193,6 +200,34 @@ function getExecutionGraph(executionGraphId) {
     });
 }
 exports.getExecutionGraph = getExecutionGraph;
+function getExecutionGraphResult(executionGraphId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.info(`Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`);
+        if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+        }
+        const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
+        try {
+            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            //TODO: Handle response codes
+            let result = response.data;
+            const resultFile = path.join(getFolder(executionGraphId), 'result.json');
+            fs_1.default.writeFileSync(resultFile, result);
+            return result;
+        }
+        catch (err) {
+            if (axios_2.default.isAxiosError(err) && err.response) {
+                if (err.response.status == 404) {
+                    core.debug(err.response.data.detail);
+                    throw new Error(err.response.data.detail);
+                }
+                throw new Error(err.response.data.detail);
+            }
+            throw err;
+        }
+    });
+}
+exports.getExecutionGraphResult = getExecutionGraphResult;
 function createPipeline(config) {
     var _a;
     return __awaiter(this, void 0, void 0, function* () {
@@ -287,22 +322,86 @@ function getToken(input) {
     });
 }
 exports.getToken = getToken;
-function loadAllRawLogs(executionGraph) {
+function loadAllData(executionGraph) {
     return __awaiter(this, void 0, void 0, function* () {
-        let logs = [];
+        let files = [];
+        // Add result
+        files.push(path.join(getFolder(executionGraph['id'])), 'result.json');
         //TODO assertions
         for (const task of executionGraph['tasks']) {
             const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
             core.debug(`Downloaded file ${logFile}`);
-            logs.push(logFile);
+            files.push(logFile);
+            let reports = yield getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+            files.push.apply(files, reports);
         }
-        return logs;
+        return files;
     });
 }
-exports.loadAllRawLogs = loadAllRawLogs;
+exports.loadAllData = loadAllData;
+function getLogsFolder(executionGraphId) {
+    //TODO validate inputs
+    const logsFolder = path.join(root, executionGraphId, '/logs');
+    if (!fs_1.default.existsSync(logsFolder)) {
+        core.debug(`Creating logs folder ${logsFolder}`);
+        fs_1.default.mkdirSync(logsFolder, { recursive: true });
+    }
+    return logsFolder;
+}
+function getReportsFolder(executionGraphId) {
+    //TODO validate inputs
+    const reportsFolder = path.join(root, executionGraphId, '/reports');
+    if (!fs_1.default.existsSync(reportsFolder)) {
+        core.debug(`Creating logs reports ${reportsFolder}`);
+        fs_1.default.mkdirSync(reportsFolder, { recursive: true });
+    }
+    return reportsFolder;
+}
+function getFolder(executionGraphId) {
+    return path.join(root, executionGraphId);
+}
 function getDownloadVibPublicUrl() {
     return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL;
 }
+function getRawReports(executionGraphId, taskName, taskId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
+            throw new Error('VIB_PUBLIC_URL environment variable not found.');
+        }
+        core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`);
+        let reports = [];
+        const config = yield loadConfig();
+        const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
+        try {
+            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            //TODO: Handle response codes
+            let result = response.data;
+            if (result.raw_reports && result.raw_reports.length > 0) {
+                for (const raw_report of result.raw_reports) {
+                    const reportFilename = `${taskName}-${taskId}-report-${(0, sanitize_1.sanitize)(raw_report.id, '-')}`;
+                    //TODO: Can VIB return a hint on the content type?
+                    const reportFile = path.join(getReportsFolder(executionGraphId), `${reportFilename}`);
+                    const binary = Buffer.from(raw_report.raw_report, 'base64');
+                    fs_1.default.writeFileSync(reportFile, binary);
+                    reports.push(reportFile);
+                }
+            }
+            return reports;
+        }
+        catch (err) {
+            if (axios_1.default.isAxiosError(err) && err.response) {
+                if (err.response.status === 404) {
+                    core.debug(`Could not find execution graph with id ${executionGraphId}`);
+                }
+                throw err;
+            }
+            else {
+                throw err;
+            }
+        }
+    });
+}
+exports.getRawReports = getRawReports;
 function getRawLogs(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
@@ -310,7 +409,7 @@ function getRawLogs(executionGraphId, taskName, taskId) {
         }
         core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
         const config = yield loadConfig();
-        const logFile = path.join(config.logsFolder, `${taskName}-${taskId}.log`);
+        const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`);
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         core.debug(`Will store logs at ${logFile}`);
         try {
@@ -362,17 +461,10 @@ function loadConfig() {
         if (!fs_1.default.existsSync(filename)) {
             core.setFailed(`Could not find pipeline at ${baseFolder}/${pipeline}`);
         }
-        const logsFolder = path.join(root, '/logs');
-        core.debug(`Logs folder located at ${logsFolder}`);
-        if (!fs_1.default.existsSync(logsFolder)) {
-            core.debug(`Creating logs folder ${logsFolder}`);
-            fs_1.default.mkdirSync(logsFolder);
-        }
         return {
             pipeline,
             baseFolder,
             shaArchive,
-            logsFolder,
             targetPlatform: process.env.TARGET_PLATFORM
         };
     });

@@ -16,6 +16,8 @@ inputs:
 outputs:
   execution-graph:
     description: 'Execution graph result from submitting the pipeline.'
+  result:
+    description: 'The resulting report from the execution graph with tasks executed and their statuses.'
 runs:
   using: 'node16'
   main: 'dist/index.js'

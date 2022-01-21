@@ -14,6 +14,8 @@ import {
   getRawLogs,
   loadAllRawLogs,
   displayExecutionGraph,
+  getRawReports,
+  getExecutionGraphResult,
 } from "../src/main";
 import validator from "validator";
 import { exec } from "child_process";
@@ -267,6 +269,26 @@ describe("VIB", () => {
     });
   })
 */
+/*
+  it('Fetches a raw report ', async () => {
+
+    let config = await loadConfig()
+    let reportFiles = await getRawReports(fixedExecutionGraphId, fixedTaskName, fixedTaskId)
+    expect(reportFiles).toBeDefined()
+    expect(reportFiles.length).toEqual(1)
+  })
+  */
+  it('Fetches an execution graph result ', async () => {
+
+    let config = await loadConfig()
+    let executionGraphResult = await getExecutionGraphResult(fixedExecutionGraphId)
+    expect(executionGraphResult).toBeDefined()
+    expect(executionGraphResult['passed']).toEqual(true)
+    expect(executionGraphResult['actions'].length).toEqual(1)
+    expect(executionGraphResult['actions'][0]['action_id']).toEqual('trivy')
+  })
+  
+  /*
   // TODO: Add all the failure scenarios. Trying to get an execution graph that does not exist, no public url defined, etc.
   it('Runs the GitHub action and succeeds', async () => {
     let executionGraph = await runAction()
@@ -276,7 +298,7 @@ describe("VIB", () => {
     expect(executionGraph).toBeDefined()
     expect(executionGraph['status']).toEqual('SUCCEEDED')
   }, 120000) // long test, processing this execution graph ( lint, trivy ) might take up to 2 minutes.
-
+*/
 
   //TODO: Worth mocking axios and returning custom execution graphs to test the whole flows?
   //      Integration tests are slow

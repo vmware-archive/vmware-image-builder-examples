@@ -7,6 +7,7 @@ import request from "axios";
 import fs from "fs";
 import util from "util";
 import { exec } from "child_process";
+import { sanitize } from "./sanitize";
 
 const root = process.env.GITHUB_WORKSPACE
   ? path.join(process.env.GITHUB_WORKSPACE, ".")
@@ -29,7 +30,6 @@ interface Config {
   pipeline: string
   baseFolder: string
   shaArchive: string
-  logsFolder: string
   targetPlatform: string | undefined
 }
 
@@ -85,9 +85,16 @@ export async function runAction(): Promise<any> {
       await sleep(constants.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL);
       executionGraph = await getExecutionGraph(executionGraphId);
     }
-    core.info(`Generating action outputs.`);
+    const result = await getExecutionGraphResult(executionGraphId)
+    core.info("Processing execution graph result.")
+    if (!result['passed']) {
+      core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.')
+    }
+
+    core.info("Generating action outputs.");
     //TODO: Improve existing tests to verify that outputs are set
     core.setOutput("execution-graph", executionGraph);
+    core.setOutput("result", result)
 
     // TODO: Fetch logs and results
     // TODO: Upload logs and results as artifacts
@@ -107,19 +114,19 @@ export async function runAction(): Promise<any> {
     }
 
     core.info("Downloading all logs")
-    let logFiles = await loadAllRawLogs(executionGraph)
+    let files = await loadAllData(executionGraph)
 
     core.debug("Uploading logs as artifacts to GitHub")
-    core.debug(`Will upload the following files: ${util.inspect(logFiles)}`)
-    core.debug(`Root directory: ${config.logsFolder}`)
+    core.debug(`Will upload the following files: ${util.inspect(files)}`)
+    core.debug(`Root directory: ${getLogsFolder(executionGraphId)}`)
     const artifactClient = artifact.create()
     const artifactName = `assets-${process.env.GITHUB_JOB}`
-    const rootDirectory = config.logsFolder
+
     const options = {
         continueOnError: true
     }
-    
-    const uploadResult = await artifactClient.uploadArtifact(artifactName, logFiles, rootDirectory, options)
+    const executionGraphFolder = getFolder(executionGraphId)
+    const uploadResult = await artifactClient.uploadArtifact(artifactName, files, executionGraphFolder, options)
     core.debug(`Got response from GitHub artifacts API: ${util.inspect(uploadResult)}`)
     core.info(`Uploaded artifact: ${uploadResult.artifactName}`)
     if (uploadResult.failedItems.length > 0) {
@@ -192,6 +199,38 @@ export async function getExecutionGraph(
     let executionGraph = response.data;
     displayExecutionGraph(executionGraph)
     return executionGraph
+  } catch (err) {
+    if (request.isAxiosError(err) && err.response) {
+      if (err.response.status == 404) {
+        core.debug(err.response.data.detail);
+        throw new Error(err.response.data.detail);
+      }
+      throw new Error(err.response.data.detail);
+    }
+    throw err;
+  }
+}
+
+export async function getExecutionGraphResult(
+  executionGraphId: string
+): Promise<Object> {
+  core.info(`Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`)
+  if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+    throw new Error("VIB_PUBLIC_URL environment variable not found.");
+  }
+
+  const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT });
+  try {
+    const response = await vibClient.get(
+      `/v1/execution-graphs/${executionGraphId}/report`,
+      { headers: { Authorization: `Bearer ${apiToken}` } }
+    );
+    //TODO: Handle response codes
+    let result = response.data
+
+    const resultFile = path.join(getFolder(executionGraphId), 'result.json')
+    fs.writeFileSync(resultFile, result)
+    return result
   } catch (err) {
     if (request.isAxiosError(err) && err.response) {
       if (err.response.status == 404) {
@@ -311,24 +350,103 @@ export async function getToken(input: CspInput): Promise<string> {
   }
 }
 
-export async function loadAllRawLogs(
+export async function loadAllData(
   executionGraph: Object
 ): Promise<string[]> {
 
-  let logs:string[] = []
+  let files:string[] = []
+  // Add result
+  files.push(path.join(getFolder(executionGraph['id'])), 'result.json')
 
   //TODO assertions
   for (const task of executionGraph['tasks']) {
     const logFile = await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
     core.debug(`Downloaded file ${logFile}`)
-    logs.push(logFile)
+    files.push(logFile)
+
+    let reports = await getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
+    files.push.apply(files, reports);
   }
-  return logs
+  
+  return files
+}
+
+function getLogsFolder(executionGraphId: string) {
+  //TODO validate inputs
+  const logsFolder = path.join(root, executionGraphId, '/logs')
+  if (!fs.existsSync(logsFolder)) {
+    core.debug(`Creating logs folder ${logsFolder}`)
+    fs.mkdirSync(logsFolder, { recursive: true })
+  }
+
+  return logsFolder
+}
+
+function getReportsFolder(executionGraphId: string) {
+  //TODO validate inputs
+  const reportsFolder = path.join(root, executionGraphId, '/reports')
+  if (!fs.existsSync(reportsFolder)) {
+    core.debug(`Creating logs reports ${reportsFolder}`)
+    fs.mkdirSync(reportsFolder, { recursive: true })
+  }
+
+  return reportsFolder
+}
+
+function getFolder(executionGraphId: string) {
+
+  return path.join(root, executionGraphId)
 }
 
 function getDownloadVibPublicUrl(): string|undefined {
 
   return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL
+}
+
+export async function getRawReports(
+  executionGraphId: string,
+  taskName: string,
+  taskId: string
+): Promise<string[]> {
+  if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
+    throw new Error('VIB_PUBLIC_URL environment variable not found.')
+  }
+  core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`)
+
+  let reports:string[] = []
+
+  const config = await loadConfig()
+  const apiToken = await getToken({timeout: constants.CSP_TIMEOUT})
+
+  try {
+    const response = await vibClient.get(
+      `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`,
+      {headers: {Authorization: `Bearer ${apiToken}`}}
+    )
+    //TODO: Handle response codes
+    let result = response.data
+    if (result.raw_reports && result.raw_reports.length > 0) {
+      for (const raw_report of result.raw_reports) {
+        const reportFilename = `${taskName}-${taskId}-report-${sanitize(raw_report.id,'-')}`
+        //TODO: Can VIB return a hint on the content type?
+        const reportFile = path.join(getReportsFolder(executionGraphId), `${reportFilename}`)
+        const binary = Buffer.from(raw_report.raw_report, 'base64')
+        fs.writeFileSync(reportFile, binary)
+        reports.push(reportFile)
+      }
+    }
+    return reports
+
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      if (err.response.status === 404) {
+        core.debug(`Could not find execution graph with id ${executionGraphId}`)
+      }
+      throw err
+    } else {
+      throw err
+    }
+  }
 }
 
 export async function getRawLogs(
@@ -342,7 +460,7 @@ export async function getRawLogs(
   core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`)
 
   const config = await loadConfig()
-  const logFile = path.join(config.logsFolder, `${taskName}-${taskId}.log`)
+  const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`)
   const apiToken = await getToken({timeout: constants.CSP_TIMEOUT})
 
   core.debug(`Will store logs at ${logFile}`)
@@ -399,18 +517,10 @@ export async function loadConfig(): Promise<Config> {
   if (!fs.existsSync(filename)) {
     core.setFailed(`Could not find pipeline at ${baseFolder}/${pipeline}`);
   }
-  const logsFolder = path.join(root, '/logs')
-  core.debug(`Logs folder located at ${logsFolder}`)
-  if (!fs.existsSync(logsFolder)) {
-    core.debug(`Creating logs folder ${logsFolder}`)
-    fs.mkdirSync(logsFolder)
-  }
-
   return {
     pipeline,
     baseFolder,
     shaArchive,
-    logsFolder,
     targetPlatform: process.env.TARGET_PLATFORM
   };
 }
