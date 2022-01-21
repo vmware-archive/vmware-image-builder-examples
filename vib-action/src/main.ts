@@ -229,7 +229,7 @@ export async function getExecutionGraphResult(
     let result = response.data
 
     const resultFile = path.join(getFolder(executionGraphId), 'result.json')
-    fs.writeFileSync(resultFile, result)
+    fs.writeFileSync(resultFile, JSON.stringify(result))
     return result
   } catch (err) {
     if (request.isAxiosError(err) && err.response) {
@@ -371,9 +371,9 @@ export async function loadAllData(
   return files
 }
 
-function getLogsFolder(executionGraphId: string) {
+function getLogsFolder(executionGraphId: string) : string {
   //TODO validate inputs
-  const logsFolder = path.join(root, executionGraphId, '/logs')
+  const logsFolder = path.join(root, getFolder(executionGraphId), '/logs')
   if (!fs.existsSync(logsFolder)) {
     core.debug(`Creating logs folder ${logsFolder}`)
     fs.mkdirSync(logsFolder, { recursive: true })
@@ -382,9 +382,9 @@ function getLogsFolder(executionGraphId: string) {
   return logsFolder
 }
 
-function getReportsFolder(executionGraphId: string) {
+function getReportsFolder(executionGraphId: string) : string {
   //TODO validate inputs
-  const reportsFolder = path.join(root, executionGraphId, '/reports')
+  const reportsFolder = path.join(root, getFolder(executionGraphId), '/reports')
   if (!fs.existsSync(reportsFolder)) {
     core.debug(`Creating logs reports ${reportsFolder}`)
     fs.mkdirSync(reportsFolder, { recursive: true })
@@ -393,9 +393,13 @@ function getReportsFolder(executionGraphId: string) {
   return reportsFolder
 }
 
-function getFolder(executionGraphId: string) {
+function getFolder(executionGraphId: string) : string {
 
-  return path.join(root, executionGraphId)
+  const folder = path.join(root, "outputs", executionGraphId)
+  if (!fs.existsSync(folder)) {
+    fs.mkdirSync(folder, { recursive : true })
+  }
+  return folder
 }
 
 function getDownloadVibPublicUrl(): string|undefined {

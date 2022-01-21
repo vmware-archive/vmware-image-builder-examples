@@ -12,7 +12,6 @@ import {
   reset,
   runAction,
   getRawLogs,
-  loadAllRawLogs,
   displayExecutionGraph,
   getRawReports,
   getExecutionGraphResult,
