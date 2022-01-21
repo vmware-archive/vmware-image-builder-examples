@@ -388,7 +388,7 @@ function loadAllData(executionGraph) {
     return __awaiter(this, void 0, void 0, function* () {
         let files = [];
         // Add result
-        files.push(path.join(getFolder(executionGraph['execution_graph_id'])), 'result.json');
+        files.push(path.join(getFolder(executionGraph['execution_graph_id']), 'result.json'));
         //TODO assertions
         for (const task of executionGraph['tasks']) {
             const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);

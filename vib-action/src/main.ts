@@ -356,7 +356,7 @@ export async function loadAllData(
 
   let files:string[] = []
   // Add result
-  files.push(path.join(getFolder(executionGraph['execution_graph_id'])), 'result.json')
+  files.push(path.join(getFolder(executionGraph['execution_graph_id']),'result.json'))
 
   //TODO assertions
   for (const task of executionGraph['tasks']) {
