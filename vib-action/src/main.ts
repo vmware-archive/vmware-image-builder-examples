@@ -118,7 +118,7 @@ export async function runAction(): Promise<any> {
 
     core.debug("Uploading logs as artifacts to GitHub")
     core.debug(`Will upload the following files: ${util.inspect(files)}`)
-    core.debug(`Root directory: ${getLogsFolder(executionGraphId)}`)
+    core.debug(`Root directory: ${getFolder(executionGraphId)}`)
     const artifactClient = artifact.create()
     const artifactName = `assets-${process.env.GITHUB_JOB}`
 
@@ -373,7 +373,7 @@ export async function loadAllData(
 
 function getLogsFolder(executionGraphId: string) : string {
   //TODO validate inputs
-  const logsFolder = path.join(root, getFolder(executionGraphId), '/logs')
+  const logsFolder = path.join(getFolder(executionGraphId), '/logs')
   if (!fs.existsSync(logsFolder)) {
     core.debug(`Creating logs folder ${logsFolder}`)
     fs.mkdirSync(logsFolder, { recursive: true })
@@ -384,7 +384,7 @@ function getLogsFolder(executionGraphId: string) : string {
 
 function getReportsFolder(executionGraphId: string) : string {
   //TODO validate inputs
-  const reportsFolder = path.join(root, getFolder(executionGraphId), '/reports')
+  const reportsFolder = path.join(getFolder(executionGraphId), '/reports')
   if (!fs.existsSync(reportsFolder)) {
     core.debug(`Creating logs reports ${reportsFolder}`)
     fs.mkdirSync(reportsFolder, { recursive: true })

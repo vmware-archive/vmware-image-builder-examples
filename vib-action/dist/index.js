@@ -177,7 +177,7 @@ function runAction() {
             let files = yield loadAllData(executionGraph);
             core.debug("Uploading logs as artifacts to GitHub");
             core.debug(`Will upload the following files: ${util_1.default.inspect(files)}`);
-            core.debug(`Root directory: ${getLogsFolder(executionGraphId)}`);
+            core.debug(`Root directory: ${getFolder(executionGraphId)}`);
             const artifactClient = artifact.create();
             const artifactName = `assets-${process.env.GITHUB_JOB}`;
             const options = {
@@ -403,7 +403,7 @@ function loadAllData(executionGraph) {
 exports.loadAllData = loadAllData;
 function getLogsFolder(executionGraphId) {
     //TODO validate inputs
-    const logsFolder = path.join(root, getFolder(executionGraphId), '/logs');
+    const logsFolder = path.join(getFolder(executionGraphId), '/logs');
     if (!fs_1.default.existsSync(logsFolder)) {
         core.debug(`Creating logs folder ${logsFolder}`);
         fs_1.default.mkdirSync(logsFolder, { recursive: true });
@@ -412,7 +412,7 @@ function getLogsFolder(executionGraphId) {
 }
 function getReportsFolder(executionGraphId) {
     //TODO validate inputs
-    const reportsFolder = path.join(root, getFolder(executionGraphId), '/reports');
+    const reportsFolder = path.join(getFolder(executionGraphId), '/reports');
     if (!fs_1.default.existsSync(reportsFolder)) {
         core.debug(`Creating logs reports ${reportsFolder}`);
         fs_1.default.mkdirSync(reportsFolder, { recursive: true });
