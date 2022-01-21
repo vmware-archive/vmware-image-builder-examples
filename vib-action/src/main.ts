@@ -113,7 +113,7 @@ export async function runAction(): Promise<any> {
       }
     }
 
-    core.info("Downloading all logs")
+    core.info("Downloading all outputs from execution graph.")
     let files = await loadAllData(executionGraph)
 
     core.debug("Uploading logs as artifacts to GitHub")
@@ -356,7 +356,7 @@ export async function loadAllData(
 
   let files:string[] = []
   // Add result
-  files.push(path.join(getFolder(executionGraph['id'])), 'result.json')
+  files.push(path.join(getFolder(executionGraph['execution_graph_id'])), 'result.json')
 
   //TODO assertions
   for (const task of executionGraph['tasks']) {
