@@ -274,7 +274,7 @@ function getExecutionGraphResult(executionGraphId) {
             //TODO: Handle response codes
             let result = response.data;
             const resultFile = path.join(getFolder(executionGraphId), 'result.json');
-            fs_1.default.writeFileSync(resultFile, result);
+            fs_1.default.writeFileSync(resultFile, JSON.stringify(result));
             return result;
         }
         catch (err) {
@@ -403,7 +403,7 @@ function loadAllData(executionGraph) {
 exports.loadAllData = loadAllData;
 function getLogsFolder(executionGraphId) {
     //TODO validate inputs
-    const logsFolder = path.join(root, executionGraphId, '/logs');
+    const logsFolder = path.join(root, getFolder(executionGraphId), '/logs');
     if (!fs_1.default.existsSync(logsFolder)) {
         core.debug(`Creating logs folder ${logsFolder}`);
         fs_1.default.mkdirSync(logsFolder, { recursive: true });
@@ -412,7 +412,7 @@ function getLogsFolder(executionGraphId) {
 }
 function getReportsFolder(executionGraphId) {
     //TODO validate inputs
-    const reportsFolder = path.join(root, executionGraphId, '/reports');
+    const reportsFolder = path.join(root, getFolder(executionGraphId), '/reports');
     if (!fs_1.default.existsSync(reportsFolder)) {
         core.debug(`Creating logs reports ${reportsFolder}`);
         fs_1.default.mkdirSync(reportsFolder, { recursive: true });
@@ -420,7 +420,11 @@ function getReportsFolder(executionGraphId) {
     return reportsFolder;
 }
 function getFolder(executionGraphId) {
-    return path.join(root, executionGraphId);
+    const folder = path.join(root, "outputs", executionGraphId);
+    if (!fs_1.default.existsSync(folder)) {
+        fs_1.default.mkdirSync(folder, { recursive: true });
+    }
+    return folder;
 }
 function getDownloadVibPublicUrl() {
     return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL;
