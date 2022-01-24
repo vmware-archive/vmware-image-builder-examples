@@ -1,29 +1,34 @@
+import * as artifact from "@actions/artifact"
 import * as constants from "./constants"
 import * as core from "@actions/core"
 import * as path from "path"
 import axios from "axios"
 import fs from "fs"
+import { sanitize } from "./sanitize"
 import util from "util"
 
 const root = process.env.GITHUB_WORKSPACE
   ? path.join(process.env.GITHUB_WORKSPACE, ".")
   : path.join(__dirname, "..")
 
+  //TODO timeouts in these two clients should be way shorter
 const cspClient = axios.create({
   baseURL: `${process.env.CSP_API_URL}`,
-  timeout: 3000,
+  timeout: 10000,
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
 })
 
 const vibClient = axios.create({
   baseURL: `${process.env.VIB_PUBLIC_URL}`,
-  timeout: 3000,
+  timeout: 10000,
   headers: { "Content-Type": "application/json" },
 })
 
 interface Config {
-  pipeline: string;
-  baseFolder: string;
+  pipeline: string
+  baseFolder: string
+  shaArchive: string
+  targetPlatform: string | undefined
 }
 
 interface CspToken {
@@ -36,6 +41,7 @@ interface CspInput {
 }
 
 let cachedCspToken: CspToken | null = null
+const recordedStatuses = {}
 
 async function run(): Promise<void> {
   //TODO: Refactor so we don't need to do this check
@@ -77,9 +83,16 @@ export async function runAction(): Promise<any> {
       await sleep(constants.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL)
       executionGraph = await getExecutionGraph(executionGraphId)
     }
-    core.info(`Generating action outputs.`)
+    const result = await getExecutionGraphResult(executionGraphId)
+    core.info("Processing execution graph result.")
+    if (!result['passed']) {
+      core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.')
+    }
+
+    core.info("Generating action outputs.")
     //TODO: Improve existing tests to verify that outputs are set
     core.setOutput("execution-graph", executionGraph)
+    core.setOutput("result", result)
 
     // TODO: Fetch logs and results
     // TODO: Upload logs and results as artifacts
@@ -98,10 +111,73 @@ export async function runAction(): Promise<any> {
       }
     }
 
+    core.info("Downloading all outputs from execution graph.")
+    const files = await loadAllData(executionGraph)
+
+    if (process.env.ACTIONS_RUNTIME_TOKEN) {
+      core.debug("Uploading logs as artifacts to GitHub")
+      core.debug(`Will upload the following files: ${util.inspect(files)}`)
+      core.debug(`Root directory: ${getFolder(executionGraphId)}`)
+      const artifactClient = artifact.create()
+      const artifactName = `assets-${process.env.GITHUB_JOB}`
+
+      const options = {
+          continueOnError: true
+      }
+      const executionGraphFolder = getFolder(executionGraphId)
+      const uploadResult = await artifactClient.uploadArtifact(artifactName, files, executionGraphFolder, options)
+      core.debug(`Got response from GitHub artifacts API: ${util.inspect(uploadResult)}`)
+      core.info(`Uploaded artifact: ${uploadResult.artifactName}`)
+      if (uploadResult.failedItems.length > 0) {
+        core.warning(`The following files could not be uploaded: ${util.inspect(uploadResult.failedItems)}`)
+      }
+    } else {
+      core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.")
+    }
     return executionGraph
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)
   }
+}
+
+export function displayExecutionGraph(
+  executionGraph: Object
+): void {
+  
+  for (const task of executionGraph['tasks']) {
+    const taskId = task['task_id']
+    let taskName = task['action_id']
+    const taskStatus = task['status']
+    const recordedStatus = recordedStatuses[taskId]
+
+    if (taskName === 'deployment') {
+      // find the associated task
+      const next = executionGraph['tasks'].find(it => it['task_id'] === task['next_tasks'][0])
+      taskName = `${taskName} ( ${next['action_id']} )`
+    } else if (taskName === 'undeployment') {
+      // find the associated task
+      const prev = executionGraph['tasks'].find(it => it['task_id'] === task['previous_tasks'][0])
+      taskName = `${taskName} ( ${prev['action_id']} )`
+    }
+
+    if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
+      core.info(`Task ${taskName} is now in status ${taskStatus}`)
+      switch(taskStatus) {
+        case 'FAILED': 
+          core.error(`Task ${taskName} has failed`)
+          break
+        case 'SKIPPED':
+          core.warning(`Task ${taskName} has been skipped`)
+          break
+        case 'SUCCEEDED':
+          //TODO: Use coloring to print this in green
+          core.info(`Task ${taskName} has finished successfully`)
+          break  
+      }
+    }
+    
+    recordedStatuses[taskId] = taskStatus
+  }  
 }
 
 export async function getExecutionGraph(
@@ -119,7 +195,41 @@ export async function getExecutionGraph(
       { headers: { Authorization: `Bearer ${apiToken}` } }
     )
     //TODO: Handle response codes
-    return response.data
+    const executionGraph = response.data
+    displayExecutionGraph(executionGraph)
+    return executionGraph
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      if (err.response.status === 404) {
+        core.debug(err.response.data.detail)
+        throw new Error(err.response.data.detail)
+      }
+      throw new Error(err.response.data.detail)
+    }
+    throw err
+  }
+}
+
+export async function getExecutionGraphResult(
+  executionGraphId: string
+): Promise<Object> {
+  core.info(`Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`)
+  if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+    throw new Error("VIB_PUBLIC_URL environment variable not found.")
+  }
+
+  const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
+  try {
+    const response = await vibClient.get(
+      `/v1/execution-graphs/${executionGraphId}/report`,
+      { headers: { Authorization: `Bearer ${apiToken}` } }
+    )
+    //TODO: Handle response codes
+    const result = response.data
+
+    const resultFile = path.join(getFolder(executionGraphId), 'result.json')
+    fs.writeFileSync(resultFile, JSON.stringify(result))
+    return result
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       if (err.response.status === 404) {
@@ -141,10 +251,7 @@ export async function createPipeline(config: Config): Promise<string> {
   const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
 
   try {
-    const folderName = path.join(root, config.baseFolder)
-    const filename = path.join(folderName, config.pipeline)
-    core.debug(`Reading pipeline file from ${filename}`)
-    const pipeline = fs.readFileSync(filename).toString()
+    const pipeline = await readPipeline(config)
     core.debug(`Sending pipeline: ${util.inspect(pipeline)}`)
     //TODO: Define and replace different placeholders: e.g. for values, content folders (goss, jmeter), etc.
 
@@ -171,6 +278,37 @@ export async function createPipeline(config: Config): Promise<string> {
     core.debug(`Error: ${JSON.stringify(error)}`)
     throw error
   }
+}
+
+export async function readPipeline(config: Config): Promise<string> {
+
+  const folderName = path.join(root, constants.DEFAULT_BASE_FOLDER)
+  const filename = path.join(folderName, config.pipeline)
+  core.debug(`Reading pipeline file from ${filename}`)
+  let pipeline = fs.readFileSync(filename).toString()
+
+  if (config.shaArchive) {
+    pipeline = pipeline.replace(/{SHA_ARCHIVE}/g, config.shaArchive)
+  } else {
+    if (pipeline.includes("{SHA_ARCHIVE}")) {
+      core.setFailed(`Pipeline ${config.pipeline} expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.`)
+    }
+  }
+
+  //TODO: Add tests for default target platform input variable
+  if (config.targetPlatform) {
+    pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform)
+  } else {
+    if (pipeline.includes("{TARGET_PLATFORM}")) {
+      core.warning(`Pipeline ${config.pipeline} expects TARGET_PLATFORM variable but could not be found on environment.`)
+      core.warning(`Defaulting to target platform${constants.DEFAULT_TARGET_PLATFORM}`)
+      pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, constants.DEFAULT_TARGET_PLATFORM)
+    }
+  }
+
+  core.debug(`Sending pipeline: ${util.inspect(pipeline)}`)
+
+  return pipeline
 }
 
 export async function getToken(input: CspInput): Promise<string> {
@@ -214,9 +352,155 @@ export async function getToken(input: CspInput): Promise<string> {
   }
 }
 
-export async function loadConfig(): Promise<Config> {
-  let pipeline = core.getInput("pipeline")
+export async function loadAllData(
+  executionGraph: Object
+): Promise<string[]> {
 
+  let files: string[] = []
+  // Add result
+  files.push(path.join(getFolder(executionGraph['execution_graph_id']),'result.json'))
+
+  //TODO assertions
+  for (const task of executionGraph['tasks']) {
+    const logFile = await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
+    core.debug(`Downloaded file ${logFile}`)
+    files.push(logFile)
+
+    const reports = await getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
+    files = [...files, ...reports]
+  }
+  
+  return files
+}
+
+export function getLogsFolder(executionGraphId: string): string {
+  //TODO validate inputs
+  const logsFolder = path.join(getFolder(executionGraphId), '/logs')
+  if (!fs.existsSync(logsFolder)) {
+    core.debug(`Creating logs folder ${logsFolder}`)
+    fs.mkdirSync(logsFolder, { recursive: true })
+  }
+
+  return logsFolder
+}
+
+function getReportsFolder(executionGraphId: string): string {
+  //TODO validate inputs
+  const reportsFolder = path.join(getFolder(executionGraphId), '/reports')
+  if (!fs.existsSync(reportsFolder)) {
+    core.debug(`Creating logs reports ${reportsFolder}`)
+    fs.mkdirSync(reportsFolder, { recursive: true })
+  }
+
+  return reportsFolder
+}
+
+function getFolder(executionGraphId: string): string {
+
+  const folder = path.join(root, "outputs", executionGraphId)
+  if (!fs.existsSync(folder)) {
+    fs.mkdirSync(folder, { recursive : true })
+  }
+  return folder
+}
+
+function getDownloadVibPublicUrl(): string|undefined {
+
+  return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL
+}
+
+export async function getRawReports(
+  executionGraphId: string,
+  taskName: string,
+  taskId: string
+): Promise<string[]> {
+  if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
+    throw new Error('VIB_PUBLIC_URL environment variable not found.')
+  }
+  core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`)
+
+  const reports: string[] = []
+
+  const apiToken = await getToken({timeout: constants.CSP_TIMEOUT})
+
+  try {
+    const response = await vibClient.get(
+      `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`,
+      {headers: {Authorization: `Bearer ${apiToken}`}}
+    )
+    //TODO: Handle response codes
+    const result = response.data
+    if (result.raw_reports && result.raw_reports.length > 0) {
+      for (const raw_report of result.raw_reports) {
+        const reportFilename = `${taskName}-${taskId}-report-${sanitize(raw_report.id,'-')}`
+        //TODO: Can VIB return a hint on the content type?
+        const reportFile = path.join(getReportsFolder(executionGraphId), `${reportFilename}`)
+        const binary = Buffer.from(raw_report.raw_report, 'base64')
+        fs.writeFileSync(reportFile, binary)
+        reports.push(reportFile)
+      }
+    }
+    return reports
+
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      if (err.response.status === 404) {
+        core.debug(`Could not find execution graph with id ${executionGraphId}`)
+      }
+      throw err
+    } else {
+      throw err
+    }
+  }
+}
+
+export async function getRawLogs(
+  executionGraphId: string,
+  taskName: string,
+  taskId: string
+): Promise<string> {
+  if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
+    throw new Error('VIB_PUBLIC_URL environment variable not found.')
+  }
+  core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`)
+
+  const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`)
+  const apiToken = await getToken({timeout: constants.CSP_TIMEOUT})
+
+  core.debug(`Will store logs at ${logFile}`)
+  try {
+    const response = await vibClient.get(
+      `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`,
+      {headers: {Authorization: `Bearer ${apiToken}`}}
+    )
+    //TODO: Handle response codes
+    fs.writeFileSync(logFile, response.data)
+    return logFile
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      if (err.response.status === 404) {
+        core.debug(`Could not find execution graph with id ${executionGraphId}`)
+      }
+      throw err
+    } else {
+      throw err
+    }
+  }
+}
+
+export async function loadConfig(): Promise<Config> {
+  
+  let shaArchive
+  // Warn on rqeuirements for HELM_CHART variable replacement
+  if (typeof process.env.GITHUB_SHA === 'undefined') {
+    core.warning('Could not find a valid GitHub SHA on environment. Is the GitHub action running as part of PR or Push flows?')
+  } else if (typeof process.env.GITHUB_REPOSITORY === 'undefined') {
+    core.warning('Could not find a valid GitHub Repository on environment. Is the GitHub action running as part of PR or Push flows?')
+  } else {
+    shaArchive = `https://github.com/${process.env.GITHUB_REPOSITORY}/archive/${process.env.GITHUB_SHA }.zip`
+  }
+  
+  let pipeline = core.getInput("pipeline")
   let baseFolder = core.getInput("config")
 
   if (pipeline === "") {
@@ -237,10 +521,11 @@ export async function loadConfig(): Promise<Config> {
   if (!fs.existsSync(filename)) {
     core.setFailed(`Could not find pipeline at ${baseFolder}/${pipeline}`)
   }
-
   return {
     pipeline,
     baseFolder,
+    shaArchive,
+    targetPlatform: process.env.TARGET_PLATFORM
   }
 }
 

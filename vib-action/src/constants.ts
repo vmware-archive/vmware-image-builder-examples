@@ -40,3 +40,10 @@ export enum EndStates {
   SUCCEEDED = "SUCCEEDED",
   FAILED = "FAILED",
 }
+
+/**
+ * Default target platform to be used if the user does not provide one
+ *
+ * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
+ */
+ export const DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1' // GKE

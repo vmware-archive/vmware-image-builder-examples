@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -39,4 +39,10 @@ var EndStates;
     EndStates["SUCCEEDED"] = "SUCCEEDED";
     EndStates["FAILED"] = "FAILED";
 })(EndStates = exports.EndStates || (exports.EndStates = {}));
+/**
+ * Default target platform to be used if the user does not provide one
+ *
+ * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
+ */
+exports.DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1'; // GKE
 //# sourceMappingURL=constants.js.map
