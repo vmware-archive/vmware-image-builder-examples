@@ -31,16 +31,15 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
+const artifact = __importStar(require("@actions/artifact"));
 const constants = __importStar(require("./constants"));
 const core = __importStar(require("@actions/core"));
-const artifact = __importStar(require("@actions/artifact"));
 const path = __importStar(require("path"));
 const axios_1 = __importDefault(require("axios"));
-const axios_2 = __importDefault(require("axios"));
 const fs_1 = __importDefault(require("fs"));
-const util_1 = __importDefault(require("util"));
 const sanitize_1 = require("./sanitize");
+const util_1 = __importDefault(require("util"));
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
     : path.join(__dirname, "..");
@@ -56,7 +55,7 @@ const vibClient = axios_1.default.create({
     headers: { "Content-Type": "application/json" },
 });
 let cachedCspToken = null;
-let taskStatus = {};
+const recordedStatuses = {};
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         //TODO: Refactor so we don't need to do this check
@@ -112,21 +111,26 @@ function runAction() {
                 }
             }
             core.info("Downloading all outputs from execution graph.");
-            let files = yield loadAllData(executionGraph);
-            core.debug("Uploading logs as artifacts to GitHub");
-            core.debug(`Will upload the following files: ${util_1.default.inspect(files)}`);
-            core.debug(`Root directory: ${getFolder(executionGraphId)}`);
-            const artifactClient = artifact.create();
-            const artifactName = `assets-${process.env.GITHUB_JOB}`;
-            const options = {
-                continueOnError: true
-            };
-            const executionGraphFolder = getFolder(executionGraphId);
-            const uploadResult = yield artifactClient.uploadArtifact(artifactName, files, executionGraphFolder, options);
-            core.debug(`Got response from GitHub artifacts API: ${util_1.default.inspect(uploadResult)}`);
-            core.info(`Uploaded artifact: ${uploadResult.artifactName}`);
-            if (uploadResult.failedItems.length > 0) {
-                core.warning(`The following files could not be uploaded: ${util_1.default.inspect(uploadResult.failedItems)}`);
+            const files = yield loadAllData(executionGraph);
+            if (process.env.ACTIONS_RUNTIME_TOKEN) {
+                core.debug("Uploading logs as artifacts to GitHub");
+                core.debug(`Will upload the following files: ${util_1.default.inspect(files)}`);
+                core.debug(`Root directory: ${getFolder(executionGraphId)}`);
+                const artifactClient = artifact.create();
+                const artifactName = `assets-${process.env.GITHUB_JOB}`;
+                const options = {
+                    continueOnError: true
+                };
+                const executionGraphFolder = getFolder(executionGraphId);
+                const uploadResult = yield artifactClient.uploadArtifact(artifactName, files, executionGraphFolder, options);
+                core.debug(`Got response from GitHub artifacts API: ${util_1.default.inspect(uploadResult)}`);
+                core.info(`Uploaded artifact: ${uploadResult.artifactName}`);
+                if (uploadResult.failedItems.length > 0) {
+                    core.warning(`The following files could not be uploaded: ${util_1.default.inspect(uploadResult.failedItems)}`);
+                }
+            }
+            else {
+                core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.");
             }
             return executionGraph;
         }
@@ -138,7 +142,6 @@ function runAction() {
 }
 exports.runAction = runAction;
 function displayExecutionGraph(executionGraph) {
-    let recordedStatuses = {};
     for (const task of executionGraph['tasks']) {
         const taskId = task['task_id'];
         let taskName = task['action_id'];
@@ -146,15 +149,15 @@ function displayExecutionGraph(executionGraph) {
         const recordedStatus = recordedStatuses[taskId];
         if (taskName === 'deployment') {
             // find the associated task
-            let next = executionGraph['tasks'].find(it => it['task_id'] === task['next_tasks'][0]);
+            const next = executionGraph['tasks'].find(it => it['task_id'] === task['next_tasks'][0]);
             taskName = `${taskName} ( ${next['action_id']} )`;
         }
         else if (taskName === 'undeployment') {
             // find the associated task
-            let prev = executionGraph['tasks'].find(it => it['task_id'] === task['previous_tasks'][0]);
+            const prev = executionGraph['tasks'].find(it => it['task_id'] === task['previous_tasks'][0]);
             taskName = `${taskName} ( ${prev['action_id']} )`;
         }
-        if (typeof recordedStatus === "undefined" || taskStatus != recordedStatus) {
+        if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
             core.info(`Task ${taskName} is now in status ${taskStatus}`);
             switch (taskStatus) {
                 case 'FAILED':
@@ -183,13 +186,13 @@ function getExecutionGraph(executionGraphId) {
         try {
             const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
-            let executionGraph = response.data;
+            const executionGraph = response.data;
             displayExecutionGraph(executionGraph);
             return executionGraph;
         }
         catch (err) {
-            if (axios_2.default.isAxiosError(err) && err.response) {
-                if (err.response.status == 404) {
+            if (axios_1.default.isAxiosError(err) && err.response) {
+                if (err.response.status === 404) {
                     core.debug(err.response.data.detail);
                     throw new Error(err.response.data.detail);
                 }
@@ -210,14 +213,14 @@ function getExecutionGraphResult(executionGraphId) {
         try {
             const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
-            let result = response.data;
+            const result = response.data;
             const resultFile = path.join(getFolder(executionGraphId), 'result.json');
             fs_1.default.writeFileSync(resultFile, JSON.stringify(result));
             return result;
         }
         catch (err) {
-            if (axios_2.default.isAxiosError(err) && err.response) {
-                if (err.response.status == 404) {
+            if (axios_1.default.isAxiosError(err) && err.response) {
+                if (err.response.status === 404) {
                     core.debug(err.response.data.detail);
                     throw new Error(err.response.data.detail);
                 }
@@ -270,7 +273,7 @@ function readPipeline(config) {
             pipeline = pipeline.replace(/{SHA_ARCHIVE}/g, config.shaArchive);
         }
         else {
-            if (pipeline.indexOf("{SHA_ARCHIVE}") !== -1) {
+            if (pipeline.includes("{SHA_ARCHIVE}")) {
                 core.setFailed(`Pipeline ${config.pipeline} expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.`);
             }
         }
@@ -279,7 +282,7 @@ function readPipeline(config) {
             pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform);
         }
         else {
-            if (pipeline.indexOf("{TARGET_PLATFORM}") !== -1) {
+            if (pipeline.includes("{TARGET_PLATFORM}")) {
                 core.warning(`Pipeline ${config.pipeline} expects TARGET_PLATFORM variable but could not be found on environment.`);
                 core.warning(`Defaulting to target platform${constants.DEFAULT_TARGET_PLATFORM}`);
                 pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, constants.DEFAULT_TARGET_PLATFORM);
@@ -292,10 +295,12 @@ function readPipeline(config) {
 exports.readPipeline = readPipeline;
 function getToken(input) {
     return __awaiter(this, void 0, void 0, function* () {
+        //const config = loadConfig()
         core.debug(`Checking CSP API token... Cached token: ${cachedCspToken}`);
         core.debug(typeof process.env.CSP_API_TOKEN);
         if (typeof process.env.CSP_API_TOKEN === "undefined") {
-            throw new Error("CSP_API_TOKEN secret not found.");
+            core.setFailed("CSP_API_TOKEN secret not found.");
+            return "";
         }
         if (typeof process.env.CSP_API_URL === "undefined") {
             throw new Error("CSP_API_URL environment variable not found.");
@@ -332,8 +337,8 @@ function loadAllData(executionGraph) {
             const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
             core.debug(`Downloaded file ${logFile}`);
             files.push(logFile);
-            let reports = yield getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
-            files.push.apply(files, reports);
+            const reports = yield getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+            files = [...files, ...reports];
         }
         return files;
     });
@@ -348,6 +353,7 @@ function getLogsFolder(executionGraphId) {
     }
     return logsFolder;
 }
+exports.getLogsFolder = getLogsFolder;
 function getReportsFolder(executionGraphId) {
     //TODO validate inputs
     const reportsFolder = path.join(getFolder(executionGraphId), '/reports');
@@ -373,13 +379,12 @@ function getRawReports(executionGraphId, taskName, taskId) {
             throw new Error('VIB_PUBLIC_URL environment variable not found.');
         }
         core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`);
-        let reports = [];
-        const config = yield loadConfig();
+        const reports = [];
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
             const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
-            let result = response.data;
+            const result = response.data;
             if (result.raw_reports && result.raw_reports.length > 0) {
                 for (const raw_report of result.raw_reports) {
                     const reportFilename = `${taskName}-${taskId}-report-${(0, sanitize_1.sanitize)(raw_report.id, '-')}`;
@@ -412,7 +417,6 @@ function getRawLogs(executionGraphId, taskName, taskId) {
             throw new Error('VIB_PUBLIC_URL environment variable not found.');
         }
         core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
-        const config = yield loadConfig();
         const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`);
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         core.debug(`Will store logs at ${logFile}`);
