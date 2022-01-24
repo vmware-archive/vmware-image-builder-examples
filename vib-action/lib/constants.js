@@ -4,15 +4,15 @@ exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = expo
 /**
  * Base folder where VIB content can be found
  *
- * @default '.cp'
+ * @default '.vib'
  */
-exports.DEFAULT_BASE_FOLDER = ".cp";
+exports.DEFAULT_BASE_FOLDER = ".vib";
 /**
  * Base VIB pipeline file
  *
- * @default 'cp-pipeline.json'
+ * @default 'vib-pipeline.json'
  */
-exports.DEFAULT_PIPELINE = "cp-pipeline.json";
+exports.DEFAULT_PIPELINE = "vib-pipeline.json";
 /**
  * Max waiting time for an execution graph to complete
  *
