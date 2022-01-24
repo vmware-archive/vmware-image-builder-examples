@@ -107,8 +107,8 @@ describe("VIB", () => {
   })
 
   it("Default base folder is not used when customized", async () => {
-    process.env["INPUT_CONFIG"] = ".cp-other"
-    process.env["INPUT_PIPELINE"] = "cp-pipeline-other.json"
+    process.env["INPUT_CONFIG"] = ".vib-other"
+    process.env["INPUT_PIPELINE"] = "vib-pipeline-other.json"
     const config = await loadConfig()
     expect(config.baseFolder).toEqual(process.env["INPUT_CONFIG"])
   })
@@ -124,7 +124,7 @@ describe("VIB", () => {
     await loadConfig()
     expect(core.setFailed).toHaveBeenCalledTimes(1)
     expect(core.setFailed).toHaveBeenCalledWith(
-      "Could not find pipeline at .cp/prueba.json")
+      "Could not find pipeline at .vib/prueba.json")
   })
   
   //TODO: Move these URLs to constant defaults and change tests to verify default is used when no env variable exists
@@ -170,7 +170,7 @@ describe("VIB", () => {
   })
 
   it("Create not default pipeline. Return an execution graph", async () => {
-    process.env["INPUT_PIPELINE"] = "cp-pipeline-2.json"
+    process.env["INPUT_PIPELINE"] = "vib-pipeline-2.json"
     const config = await loadConfig()
     const executionGraphId = await createPipeline(config)
     core.debug(`Got execution graph id ${executionGraphId}`)
@@ -221,7 +221,7 @@ describe("VIB", () => {
 
   it('Reads a pipeline and templates sha archive if needed', async () => {
 
-    process.env.INPUT_PIPELINE='cp-sha-archive.json'
+    process.env.INPUT_PIPELINE='vib-sha-archive.json'
     process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
     process.env.GITHUB_REPOSITORY='vmware/vib-action'
     const config = await loadConfig()
@@ -232,14 +232,14 @@ describe("VIB", () => {
   })
 
   it('Reads a pipeline and fails if cannot template sha archive when needed', async () => {
-    process.env.INPUT_PIPELINE='cp-sha-archive.json'
+    process.env.INPUT_PIPELINE='vib-sha-archive.json'
     jest.spyOn(core, 'setFailed')
     core.debug("This test should fail")
     const config = await loadConfig()
     await readPipeline(config)
     expect(core.setFailed).toHaveBeenCalledTimes(1)
     expect(core.setFailed).toHaveBeenCalledWith(
-      'Pipeline cp-sha-archive.json expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.')
+      'Pipeline vib-sha-archive.json expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.')
   })       
 
   it('Fetches execution graph logs', async () => {

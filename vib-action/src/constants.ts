@@ -1,16 +1,16 @@
 /**
  * Base folder where VIB content can be found
  *
- * @default '.cp'
+ * @default '.vib'
  */
-export const DEFAULT_BASE_FOLDER = ".cp"
+export const DEFAULT_BASE_FOLDER = ".vib"
 
 /**
  * Base VIB pipeline file
  *
- * @default 'cp-pipeline.json'
+ * @default 'vib-pipeline.json'
  */
-export const DEFAULT_PIPELINE = "cp-pipeline.json"
+export const DEFAULT_PIPELINE = "vib-pipeline.json"
 
 /**
  * Max waiting time for an execution graph to complete
