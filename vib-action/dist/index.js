@@ -365,7 +365,8 @@ function getToken(input) {
             return "";
         }
         if (typeof process.env.CSP_API_URL === "undefined") {
-            throw new Error("CSP_API_URL environment variable not found.");
+            core.setFailed("CSP_API_URL environment variable not found.");
+            return "";
         }
         if (cachedCspToken != null && cachedCspToken.timestamp > Date.now()) {
             return cachedCspToken.access_token;

@@ -77,28 +77,20 @@ describe("VIB", () => {
   })
 
   it("No CSP_API_TOKEN throws an error", async () => {
-    const existingApiToken = process.env["CSP_API_TOKEN"]
-    try {
-      delete process.env["CSP_API_TOKEN"]
-      await getToken({ timeout: defaultCspTimeout })
-      expect(core.setFailed).toHaveBeenCalledTimes(1)
-      expect(core.setFailed).toHaveBeenCalledWith(
-        "CSP_API_TOKEN secret not found.")
-    } finally {
-      process.env["CSP_API_URL"] = existingApiToken
-    }
+    delete process.env["CSP_API_TOKEN"]
+    await getToken({ timeout: defaultCspTimeout })
+    expect(core.setFailed).toHaveBeenCalledTimes(1)
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "CSP_API_TOKEN secret not found.")
   })
 
   it("No CSP_API_URL throws an error", async () => {
-    const existingApiUrl = process.env["CSP_API_URL"]
-    try {
-      delete process.env["CSP_API_URL"]
-      expect(getToken).rejects.toThrow(
-        new Error("CSP_API_URL environment variable not found.")
-      )
-    } finally {
-      process.env["CSP_API_URL"] = existingApiUrl
-    }
+    delete process.env["CSP_API_URL"]
+    process.env.CSP_API_TOKEN="abcd"
+    await getToken({ timeout: defaultCspTimeout })
+    expect(core.setFailed).toHaveBeenCalledTimes(1)
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "CSP_API_URL environment variable not found.")
   })
 
   it("Default base folder is used when not customized", async () => {
