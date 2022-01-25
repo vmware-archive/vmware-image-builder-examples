@@ -88,28 +88,8 @@ function runAction() {
                 yield sleep(constants.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL);
                 executionGraph = yield getExecutionGraph(executionGraphId);
             }
-            const result = yield getExecutionGraphResult(executionGraphId);
-            core.info("Processing execution graph result.");
-            if (!result['passed']) {
-                core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.');
-            }
-            core.info("Generating action outputs.");
-            //TODO: Improve existing tests to verify that outputs are set
-            core.setOutput("execution-graph", executionGraph);
-            core.setOutput("result", result);
             // TODO: Fetch logs and results
             // TODO: Upload logs and results as artifacts
-            if (!Object.values(constants.EndStates).includes(executionGraph["status"])) {
-                core.setFailed(`Execution graph ${executionGraphId} has timed out.`);
-            }
-            else {
-                if (executionGraph["status"] === constants.EndStates.FAILED) {
-                    core.setFailed(`Execution graph ${executionGraphId} has failed.`);
-                }
-                else {
-                    core.info(`Execution graph ${executionGraphId} has completed successfully.`);
-                }
-            }
             core.info("Downloading all outputs from execution graph.");
             const files = yield loadAllData(executionGraph);
             if (process.env.ACTIONS_RUNTIME_TOKEN) {
@@ -132,6 +112,26 @@ function runAction() {
             else {
                 core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.");
             }
+            const result = yield getExecutionGraphResult(executionGraphId);
+            core.info("Processing execution graph result.");
+            if (!result['passed']) {
+                core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.');
+            }
+            if (!Object.values(constants.EndStates).includes(executionGraph["status"])) {
+                core.setFailed(`Execution graph ${executionGraphId} has timed out.`);
+            }
+            else {
+                if (executionGraph["status"] === constants.EndStates.FAILED) {
+                    core.setFailed(`Execution graph ${executionGraphId} has failed.`);
+                }
+                else {
+                    core.info(`Execution graph ${executionGraphId} has completed successfully.`);
+                }
+            }
+            core.info("Generating action outputs.");
+            //TODO: Improve existing tests to verify that outputs are set
+            core.setOutput("execution-graph", executionGraph);
+            core.setOutput("result", result);
             return executionGraph;
         }
         catch (error) {
