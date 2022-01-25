@@ -84,11 +84,6 @@ export async function runAction(): Promise<any> {
       executionGraph = await getExecutionGraph(executionGraphId)
     }
 
-    core.info("Generating action outputs.")
-    //TODO: Improve existing tests to verify that outputs are set
-    core.setOutput("execution-graph", executionGraph)
-    core.setOutput("result", result)
-
     // TODO: Fetch logs and results
     // TODO: Upload logs and results as artifacts
 
@@ -135,6 +130,11 @@ export async function runAction(): Promise<any> {
         )
       }
     }
+
+    core.info("Generating action outputs.")
+    //TODO: Improve existing tests to verify that outputs are set
+    core.setOutput("execution-graph", executionGraph)
+    core.setOutput("result", result)
 
     return executionGraph
   } catch (error) {
