@@ -83,11 +83,6 @@ export async function runAction(): Promise<any> {
       await sleep(constants.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL)
       executionGraph = await getExecutionGraph(executionGraphId)
     }
-    const result = await getExecutionGraphResult(executionGraphId)
-    core.info("Processing execution graph result.")
-    if (!result['passed']) {
-      core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.')
-    }
 
     core.info("Generating action outputs.")
     //TODO: Improve existing tests to verify that outputs are set
@@ -96,20 +91,6 @@ export async function runAction(): Promise<any> {
 
     // TODO: Fetch logs and results
     // TODO: Upload logs and results as artifacts
-
-    if (
-      !Object.values(constants.EndStates).includes(executionGraph["status"])
-    ) {
-      core.setFailed(`Execution graph ${executionGraphId} has timed out.`)
-    } else {
-      if (executionGraph["status"] === constants.EndStates.FAILED) {
-        core.setFailed(`Execution graph ${executionGraphId} has failed.`)
-      } else {
-        core.info(
-          `Execution graph ${executionGraphId} has completed successfully.`
-        )
-      }
-    }
 
     core.info("Downloading all outputs from execution graph.")
     const files = await loadAllData(executionGraph)
@@ -134,6 +115,27 @@ export async function runAction(): Promise<any> {
     } else {
       core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.")
     }
+
+    const result = await getExecutionGraphResult(executionGraphId)
+    core.info("Processing execution graph result.")
+    if (!result['passed']) {
+      core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.')
+    }
+
+    if (
+      !Object.values(constants.EndStates).includes(executionGraph["status"])
+    ) {
+      core.setFailed(`Execution graph ${executionGraphId} has timed out.`)
+    } else {
+      if (executionGraph["status"] === constants.EndStates.FAILED) {
+        core.setFailed(`Execution graph ${executionGraphId} has failed.`)
+      } else {
+        core.info(
+          `Execution graph ${executionGraphId} has completed successfully.`
+        )
+      }
+    }
+
     return executionGraph
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)
