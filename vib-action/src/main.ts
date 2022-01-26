@@ -379,8 +379,10 @@ export async function loadAllData(
   //TODO assertions
   for (const task of executionGraph['tasks']) {
     const logFile = await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
-    core.debug(`Downloaded file ${logFile}`)
-    files.push(logFile)
+    if (logFile) {
+      core.debug(`Downloaded file ${logFile}`)
+      files.push(logFile)
+    }
 
     const reports = await getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
     files = [...files, ...reports]
@@ -491,10 +493,9 @@ export async function getRawReports(
 
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
-      if (err.response.status === 404) {
-        core.debug(`Could not find execution graph with id ${executionGraphId}`)
-      }
-      throw err
+      // Don't throw error if we cannot fetch a report
+      core.error(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      return []
     } else {
       throw err
     }
@@ -505,7 +506,7 @@ export async function getRawLogs(
   executionGraphId: string,
   taskName: string,
   taskId: string
-): Promise<string> {
+): Promise<string | null> {
   if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
     throw new Error('VIB_PUBLIC_URL environment variable not found.')
   }
@@ -525,10 +526,9 @@ export async function getRawLogs(
     return logFile
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
-      if (err.response.status === 404) {
-        core.debug(`Could not find execution graph with id ${executionGraphId}`)
-      }
-      throw err
+      // Don't throw error if we cannot fetch a log
+      core.error(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      return null
     } else {
       throw err
     }
