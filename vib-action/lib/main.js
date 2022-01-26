@@ -62,6 +62,7 @@ function run() {
         //TODO: Refactor so we don't need to do this check
         if (process.env["JEST_TESTS"] === "true")
             return; // skip running logic when importing class for npm test
+        loadTargetPlatforms(); // load target platforms in the background
         yield runAction();
     });
 }
