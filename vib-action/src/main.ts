@@ -89,6 +89,7 @@ export async function runAction(): Promise<any> {
 
     core.info("Downloading all outputs from execution graph.")
     const files = await loadAllData(executionGraph)
+    const result = await getExecutionGraphResult(executionGraphId)
 
     if (process.env.ACTIONS_RUNTIME_TOKEN) {
       core.debug("Uploading logs as artifacts to GitHub")
@@ -111,7 +112,6 @@ export async function runAction(): Promise<any> {
       core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.")
     }
 
-    const result = await getExecutionGraphResult(executionGraphId)
     core.info("Processing execution graph result.")
     if (!result['passed']) {
       core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.')
