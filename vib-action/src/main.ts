@@ -21,7 +21,7 @@ const cspClient = axios.create({
 const vibClient = axios.create({
   baseURL: `${process.env.VIB_PUBLIC_URL}`,
   timeout: 10000,
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 })
 
 interface Config {
