@@ -41,6 +41,7 @@ interface CspInput {
 }
 
 let cachedCspToken: CspToken | null = null
+let targetPlatforms
 const recordedStatuses = {}
 
 async function run(): Promise<void> {
@@ -84,9 +85,6 @@ export async function runAction(): Promise<any> {
       executionGraph = await getExecutionGraph(executionGraphId)
     }
 
-    // TODO: Fetch logs and results
-    // TODO: Upload logs and results as artifacts
-
     core.info("Downloading all outputs from execution graph.")
     const files = await loadAllData(executionGraph)
     const result = await getExecutionGraphResult(executionGraphId)
@@ -96,7 +94,7 @@ export async function runAction(): Promise<any> {
       core.debug(`Will upload the following files: ${util.inspect(files)}`)
       core.debug(`Root directory: ${getFolder(executionGraphId)}`)
       const artifactClient = artifact.create()
-      const artifactName = `assets-${process.env.GITHUB_JOB}`
+      const artifactName = getArtifactName(config)
 
       const options = {
           continueOnError: true
@@ -140,6 +138,20 @@ export async function runAction(): Promise<any> {
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)
   }
+}
+
+export function getArtifactName(
+  config: Config
+): string {
+
+  if (config.targetPlatform) {
+    // try to find the platform
+    const targetPlatform = targetPlatforms[config.targetPlatform]
+    if (targetPlatform) {
+      return `assets-${process.env.GITHUB_JOB}-${targetPlatform.kind}-${targetPlatform.version}`
+    }
+  }
+  return `assets-${process.env.GITHUB_JOB}`
 }
 
 export function displayExecutionGraph(
@@ -396,6 +408,37 @@ function getReportsFolder(executionGraphId: string): string {
   }
 
   return reportsFolder
+}
+
+/**
+ * Loads target platforms into the global target platforms map. Target platform names 
+ * will be used later to store assets. 
+ */
+export async function loadTargetPlatforms(
+): Promise<void> {
+  core.debug("Loading target platforms.")
+  if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+    throw new Error("VIB_PUBLIC_URL environment variable not found.")
+  }
+
+  const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
+  try {
+    const response = await vibClient.get(
+      "/v1/target-platforms",
+      { headers: { Authorization: `Bearer ${apiToken}` } }
+    )
+    //TODO: Handle response codes
+    targetPlatforms = response.data
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      if (err.response.status === 404) {
+        core.debug(err.response.data.detail)
+        throw new Error(err.response.data.detail)
+      }
+      throw new Error(err.response.data.detail)
+    }
+    throw err
+  }
 }
 
 function getFolder(executionGraphId: string): string {
