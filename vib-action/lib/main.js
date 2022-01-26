@@ -46,7 +46,7 @@ const root = process.env.GITHUB_WORKSPACE
 //TODO timeouts in these two clients should be way shorter
 const cspClient = axios_1.default.create({
     baseURL: `${process.env.CSP_API_URL}`,
-    timeout: 10000,
+    timeout: 15000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 const vibClient = axios_1.default.create({
