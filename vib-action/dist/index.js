@@ -154,6 +154,7 @@ function runAction() {
             // TODO: Upload logs and results as artifacts
             core.info("Downloading all outputs from execution graph.");
             const files = yield loadAllData(executionGraph);
+            const result = yield getExecutionGraphResult(executionGraphId);
             if (process.env.ACTIONS_RUNTIME_TOKEN) {
                 core.debug("Uploading logs as artifacts to GitHub");
                 core.debug(`Will upload the following files: ${util_1.default.inspect(files)}`);
@@ -174,7 +175,6 @@ function runAction() {
             else {
                 core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.");
             }
-            const result = yield getExecutionGraphResult(executionGraphId);
             core.info("Processing execution graph result.");
             if (!result['passed']) {
                 core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.');
