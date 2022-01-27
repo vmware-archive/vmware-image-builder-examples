@@ -123,15 +123,11 @@ describe("VIB", () => {
   //      Using defaults is more resilient and friendlier than forcing users to define env vars.
   
   it("No VIB_PUBLIC_URL throws an error", async () => {
-    const existingApiUrl = process.env["VIB_PUBLIC_URL"]
-    try {
-      delete process.env["VIB_PUBLIC_URL"]
-      expect(createPipeline).rejects.toThrow(
-        new Error("VIB_PUBLIC_URL environment variable not found.")
-      )
-    } finally {
-      process.env["VIB_PUBLIC_URL"] = existingApiUrl
-    }
+    delete process.env["VIB_PUBLIC_URL"]
+    await getExecutionGraph(fixedExecutionGraphId)
+    expect(core.setFailed).toHaveBeenCalledTimes(1)
+    expect(core.setFailed).toHaveBeenCalledWith(
+      "VIB_PUBLIC_URL environment variable not found.")
   })
 
   it('When github sha is not present there will be no sha archive config property', async () => {

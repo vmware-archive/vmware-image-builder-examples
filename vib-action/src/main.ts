@@ -187,7 +187,7 @@ export async function getExecutionGraph(
 ): Promise<Object> {
   core.debug(`Getting execution graph with id ${executionGraphId}`)
   if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-    throw new Error("VIB_PUBLIC_URL environment variable not found.")
+    core.setFailed("VIB_PUBLIC_URL environment variable not found.")
   }
 
   const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
@@ -217,7 +217,7 @@ export async function getExecutionGraphResult(
 ): Promise<Object> {
   core.info(`Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`)
   if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-    throw new Error("VIB_PUBLIC_URL environment variable not found.")
+    core.setFailed("VIB_PUBLIC_URL environment variable not found.")
   }
 
   const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
@@ -247,7 +247,7 @@ export async function getExecutionGraphResult(
 export async function createPipeline(config: Config): Promise<string> {
   core.debug(`Config: ${config}`)
   if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-    throw new Error("VIB_PUBLIC_URL environment variable not found.")
+    core.setFailed("VIB_PUBLIC_URL environment variable not found.")
   }
 
   const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
@@ -418,7 +418,7 @@ export async function getRawReports(
   taskId: string
 ): Promise<string[]> {
   if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-    throw new Error('VIB_PUBLIC_URL environment variable not found.')
+    core.setFailed('VIB_PUBLIC_URL environment variable not found.')
   }
   core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`)
 
@@ -463,7 +463,7 @@ export async function getRawLogs(
   taskId: string
 ): Promise<string> {
   if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-    throw new Error('VIB_PUBLIC_URL environment variable not found.')
+    core.setFailed('VIB_PUBLIC_URL environment variable not found.')
   }
   core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`)
 
@@ -517,7 +517,7 @@ export async function loadConfig(): Promise<Config> {
   const folderName = path.join(root, baseFolder)
 
   if (!fs.existsSync(folderName)) {
-    throw new Error(`Could not find base folder at ${folderName}`)
+    core.setFailed(`Could not find base folder at ${folderName}`)
   }
 
   const filename = path.join(folderName, pipeline)
