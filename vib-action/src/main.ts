@@ -14,14 +14,14 @@ const root = process.env.GITHUB_WORKSPACE
   //TODO timeouts in these two clients should be way shorter
 const cspClient = axios.create({
   baseURL: `${process.env.CSP_API_URL}`,
-  timeout: 10000,
+  timeout: 15000,
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
 })
 
 const vibClient = axios.create({
   baseURL: `${process.env.VIB_PUBLIC_URL}`,
   timeout: 10000,
-  headers: { "Content-Type": "application/json" },
+  headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 })
 
 interface Config {
@@ -41,12 +41,14 @@ interface CspInput {
 }
 
 let cachedCspToken: CspToken | null = null
+let targetPlatforms
 const recordedStatuses = {}
 
 async function run(): Promise<void> {
   //TODO: Refactor so we don't need to do this check
   if (process.env["JEST_TESTS"] === "true") return // skip running logic when importing class for npm test
 
+  loadTargetPlatforms() // load target platforms in the background
   await runAction()
 }
 
@@ -84,18 +86,16 @@ export async function runAction(): Promise<any> {
       executionGraph = await getExecutionGraph(executionGraphId)
     }
 
-    // TODO: Fetch logs and results
-    // TODO: Upload logs and results as artifacts
-
     core.info("Downloading all outputs from execution graph.")
     const files = await loadAllData(executionGraph)
+    const result = await getExecutionGraphResult(executionGraphId)
 
     if (process.env.ACTIONS_RUNTIME_TOKEN) {
       core.debug("Uploading logs as artifacts to GitHub")
       core.debug(`Will upload the following files: ${util.inspect(files)}`)
       core.debug(`Root directory: ${getFolder(executionGraphId)}`)
       const artifactClient = artifact.create()
-      const artifactName = `assets-${process.env.GITHUB_JOB}`
+      const artifactName = getArtifactName(config)
 
       const options = {
           continueOnError: true
@@ -111,7 +111,6 @@ export async function runAction(): Promise<any> {
       core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.")
     }
 
-    const result = await getExecutionGraphResult(executionGraphId)
     core.info("Processing execution graph result.")
     if (!result['passed']) {
       core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.')
@@ -140,6 +139,20 @@ export async function runAction(): Promise<any> {
   } catch (error) {
     if (error instanceof Error) core.setFailed(error.message)
   }
+}
+
+export function getArtifactName(
+  config: Config
+): string {
+
+  if (config.targetPlatform) {
+    // try to find the platform
+    const targetPlatform = targetPlatforms[config.targetPlatform]
+    if (targetPlatform) {
+      return `assets-${process.env.GITHUB_JOB}-${targetPlatform.kind}-${targetPlatform.version}`
+    }
+  }
+  return `assets-${process.env.GITHUB_JOB}`
 }
 
 export function displayExecutionGraph(
@@ -366,8 +379,10 @@ export async function loadAllData(
   //TODO assertions
   for (const task of executionGraph['tasks']) {
     const logFile = await getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
-    core.debug(`Downloaded file ${logFile}`)
-    files.push(logFile)
+    if (logFile) {
+      core.debug(`Downloaded file ${logFile}`)
+      files.push(logFile)
+    }
 
     const reports = await getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id'])
     files = [...files, ...reports]
@@ -396,6 +411,37 @@ function getReportsFolder(executionGraphId: string): string {
   }
 
   return reportsFolder
+}
+
+/**
+ * Loads target platforms into the global target platforms map. Target platform names 
+ * will be used later to store assets. 
+ */
+export async function loadTargetPlatforms(
+): Promise<void> {
+  core.debug("Loading target platforms.")
+  if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+    throw new Error("VIB_PUBLIC_URL environment variable not found.")
+  }
+
+  const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
+  try {
+    const response = await vibClient.get(
+      "/v1/target-platforms",
+      { headers: { Authorization: `Bearer ${apiToken}` } }
+    )
+    //TODO: Handle response codes
+    targetPlatforms = response.data
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      if (err.response.status === 404) {
+        core.debug(err.response.data.detail)
+        throw new Error(err.response.data.detail)
+      }
+      throw new Error(err.response.data.detail)
+    }
+    throw err
+  }
 }
 
 function getFolder(executionGraphId: string): string {
@@ -447,10 +493,9 @@ export async function getRawReports(
 
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
-      if (err.response.status === 404) {
-        core.debug(`Could not find execution graph with id ${executionGraphId}`)
-      }
-      throw err
+      // Don't throw error if we cannot fetch a report
+      core.error(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      return []
     } else {
       throw err
     }
@@ -461,7 +506,7 @@ export async function getRawLogs(
   executionGraphId: string,
   taskName: string,
   taskId: string
-): Promise<string> {
+): Promise<string | null> {
   if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
     core.setFailed('VIB_PUBLIC_URL environment variable not found.')
   }
@@ -481,10 +526,9 @@ export async function getRawLogs(
     return logFile
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
-      if (err.response.status === 404) {
-        core.debug(`Could not find execution graph with id ${executionGraphId}`)
-      }
-      throw err
+      // Don't throw error if we cannot fetch a log
+      core.error(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      return null
     } else {
       throw err
     }
