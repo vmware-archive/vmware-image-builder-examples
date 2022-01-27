@@ -93,7 +93,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = void 0;
 const artifact = __importStar(__nccwpck_require__(2605));
 const constants = __importStar(__nccwpck_require__(5105));
 const core = __importStar(__nccwpck_require__(2186));
@@ -108,21 +108,23 @@ const root = process.env.GITHUB_WORKSPACE
 //TODO timeouts in these two clients should be way shorter
 const cspClient = axios_1.default.create({
     baseURL: `${process.env.CSP_API_URL}`,
-    timeout: 10000,
+    timeout: 15000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 const vibClient = axios_1.default.create({
     baseURL: `${process.env.VIB_PUBLIC_URL}`,
     timeout: 10000,
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 });
 let cachedCspToken = null;
+let targetPlatforms;
 const recordedStatuses = {};
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         //TODO: Refactor so we don't need to do this check
         if (process.env["JEST_TESTS"] === "true")
             return; // skip running logic when importing class for npm test
+        loadTargetPlatforms(); // load target platforms in the background
         yield runAction();
     });
 }
@@ -150,16 +152,15 @@ function runAction() {
                 yield sleep(constants.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL);
                 executionGraph = yield getExecutionGraph(executionGraphId);
             }
-            // TODO: Fetch logs and results
-            // TODO: Upload logs and results as artifacts
             core.info("Downloading all outputs from execution graph.");
             const files = yield loadAllData(executionGraph);
+            const result = yield getExecutionGraphResult(executionGraphId);
             if (process.env.ACTIONS_RUNTIME_TOKEN) {
                 core.debug("Uploading logs as artifacts to GitHub");
                 core.debug(`Will upload the following files: ${util_1.default.inspect(files)}`);
                 core.debug(`Root directory: ${getFolder(executionGraphId)}`);
                 const artifactClient = artifact.create();
-                const artifactName = `assets-${process.env.GITHUB_JOB}`;
+                const artifactName = getArtifactName(config);
                 const options = {
                     continueOnError: true
                 };
@@ -174,7 +175,6 @@ function runAction() {
             else {
                 core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.");
             }
-            const result = yield getExecutionGraphResult(executionGraphId);
             core.info("Processing execution graph result.");
             if (!result['passed']) {
                 core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.');
@@ -203,6 +203,17 @@ function runAction() {
     });
 }
 exports.runAction = runAction;
+function getArtifactName(config) {
+    if (config.targetPlatform) {
+        // try to find the platform
+        const targetPlatform = targetPlatforms[config.targetPlatform];
+        if (targetPlatform) {
+            return `assets-${process.env.GITHUB_JOB}-${targetPlatform.kind}-${targetPlatform.version}`;
+        }
+    }
+    return `assets-${process.env.GITHUB_JOB}`;
+}
+exports.getArtifactName = getArtifactName;
 function displayExecutionGraph(executionGraph) {
     for (const task of executionGraph['tasks']) {
         const taskId = task['task_id'];
@@ -398,8 +409,10 @@ function loadAllData(executionGraph) {
         //TODO assertions
         for (const task of executionGraph['tasks']) {
             const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
-            core.debug(`Downloaded file ${logFile}`);
-            files.push(logFile);
+            if (logFile) {
+                core.debug(`Downloaded file ${logFile}`);
+                files.push(logFile);
+            }
             const reports = yield getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
             files = [...files, ...reports];
         }
@@ -426,6 +439,35 @@ function getReportsFolder(executionGraphId) {
     }
     return reportsFolder;
 }
+/**
+ * Loads target platforms into the global target platforms map. Target platform names
+ * will be used later to store assets.
+ */
+function loadTargetPlatforms() {
+    return __awaiter(this, void 0, void 0, function* () {
+        core.debug("Loading target platforms.");
+        if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+        }
+        const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
+        try {
+            const response = yield vibClient.get("/v1/target-platforms", { headers: { Authorization: `Bearer ${apiToken}` } });
+            //TODO: Handle response codes
+            targetPlatforms = response.data;
+        }
+        catch (err) {
+            if (axios_1.default.isAxiosError(err) && err.response) {
+                if (err.response.status === 404) {
+                    core.debug(err.response.data.detail);
+                    throw new Error(err.response.data.detail);
+                }
+                throw new Error(err.response.data.detail);
+            }
+            throw err;
+        }
+    });
+}
+exports.loadTargetPlatforms = loadTargetPlatforms;
 function getFolder(executionGraphId) {
     const folder = path.join(root, "outputs", executionGraphId);
     if (!fs_1.default.existsSync(folder)) {
@@ -462,10 +504,9 @@ function getRawReports(executionGraphId, taskName, taskId) {
         }
         catch (err) {
             if (axios_1.default.isAxiosError(err) && err.response) {
-                if (err.response.status === 404) {
-                    core.debug(`Could not find execution graph with id ${executionGraphId}`);
-                }
-                throw err;
+                // Don't throw error if we cannot fetch a report
+                core.error(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`);
+                return [];
             }
             else {
                 throw err;
@@ -491,10 +532,9 @@ function getRawLogs(executionGraphId, taskName, taskId) {
         }
         catch (err) {
             if (axios_1.default.isAxiosError(err) && err.response) {
-                if (err.response.status === 404) {
-                    core.debug(`Could not find execution graph with id ${executionGraphId}`);
-                }
-                throw err;
+                // Don't throw error if we cannot fetch a log
+                core.error(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`);
+                return null;
             }
             else {
                 throw err;
