@@ -31,6 +31,16 @@ interface Config {
   targetPlatform: string | undefined
 }
 
+interface TargetPlatform {
+  id: string,
+  kind: string,
+  version: string
+}
+
+type TargetPlatformsMap = {
+  [key: string]: TargetPlatform;
+}
+
 interface CspToken {
   access_token: string;
   timestamp: number;
@@ -41,7 +51,8 @@ interface CspInput {
 }
 
 let cachedCspToken: CspToken | null = null
-let targetPlatforms
+let targetPlatforms: TargetPlatformsMap = {}
+
 const recordedStatuses = {}
 
 async function run(): Promise<void> {
@@ -418,7 +429,7 @@ function getReportsFolder(executionGraphId: string): string {
  * will be used later to store assets. 
  */
 export async function loadTargetPlatforms(
-): Promise<void> {
+): Promise<Object> {
   core.debug("Loading target platforms.")
   if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
     throw new Error("VIB_PUBLIC_URL environment variable not found.")
@@ -431,16 +442,24 @@ export async function loadTargetPlatforms(
       { headers: { Authorization: `Bearer ${apiToken}` } }
     )
     //TODO: Handle response codes
-    targetPlatforms = response.data
-  } catch (err) {
-    if (axios.isAxiosError(err) && err.response) {
-      if (err.response.status === 404) {
-        core.debug(err.response.data.detail)
-        throw new Error(err.response.data.detail)
+    for (const targetPlatform of response.data) {
+      targetPlatforms[targetPlatform.id] = {
+        id: targetPlatform.id,
+        kind: targetPlatform.kind,
+        version: targetPlatform.version
       }
-      throw new Error(err.response.data.detail)
     }
-    throw err
+    core.debug(`Received target platforms: ${util.inspect(targetPlatforms)}`)
+    return targetPlatforms
+  } catch (err) {
+    // Don't fail action if we cannot fetch target platforms. Log error instead
+    core.error(`Could not fetch target platforms. Has the endpoint changed? `)
+    if (axios.isAxiosError(err) && err.response) {
+      core.error(`Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+    } else {
+      core.error(`Error: ${err}`)
+    }
+    return {}
   }
 }
 
@@ -583,6 +602,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export async function reset(): Promise<void> {
   cachedCspToken = null
+  targetPlatforms = {}  
 }
 
 run()

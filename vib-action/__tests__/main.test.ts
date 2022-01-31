@@ -4,6 +4,7 @@ import * as core from "@actions/core"
 import * as path from "path"
 import {
   createPipeline,
+  getArtifactName,
   getExecutionGraph,
   getExecutionGraphResult,
   getLogsFolder,
@@ -12,6 +13,7 @@ import {
   getToken,
   loadAllData,
   loadConfig,
+  loadTargetPlatforms,
   readPipeline,
   reset,
   runAction,
@@ -25,6 +27,7 @@ const fixedExecutionGraphId = "d632043b-f74c-4901-8e00-0dbed62f1031"
 const fixedTaskId = '1fd2e795-ea31-4ef2-8483-c536e48dc30d'
 const fixedTaskName = 'linter-packaging'
 const undefinedExecutionGraphId = "aaaaaaaa-f74c-4901-8e00-0dbed62f1031"
+const tkgPlatformId = "7ddab896-2e4e-4d58-a501-f79897eba3a0"
 
 const STARTING_ENV = process.env
 
@@ -236,8 +239,11 @@ describe("VIB", () => {
 
   it('Fetches execution graph logs', async () => {
     const logFile = await getRawLogs(fixedExecutionGraphId, 'linter-packaging', fixedTaskId)
-    expect(logFile).toBeDefined()
-    expect(fs.existsSync(logFile)).toBeTruthy()    
+    expect(logFile).not.toBeNull()
+    if (logFile) {
+      expect(logFile).toBeDefined()
+      expect(fs.existsSync(logFile)).toBeTruthy()    
+    }
   })
 
   it('Fetches multiple execution graph logs ', async () => {
@@ -267,7 +273,39 @@ describe("VIB", () => {
     expect(executionGraphResult['actions'].length).toEqual(1)
     expect(executionGraphResult['actions'][0]['action_id']).toEqual('trivy')
   })
-  
+
+  it('Fetches platforms', async () => {
+    const targetPlatforms = await loadTargetPlatforms()
+    expect(targetPlatforms).not.toBeNull()
+    expect(targetPlatforms[tkgPlatformId].kind).toBe("TKG")
+  })
+
+  it('Artifact uses job name if no target platform is found', async () => {
+    process.env.GITHUB_JOB = 'test-job'
+    const config = await loadConfig()
+    const artifactName = await getArtifactName(config)
+    expect(artifactName).toBe("assets-test-job")
+  })  
+
+  it('Artifact uses job name if target platform does not exist', async () => {
+    process.env.GITHUB_JOB = 'test-job'
+    process.env.TARGET_PLATFORM = 'this_one_does_not_exist'
+    await loadTargetPlatforms()
+    const config = await loadConfig()
+    const artifactName = await getArtifactName(config)
+    expect(artifactName).toBe("assets-test-job")
+  })  
+
+  it('Artifact uses target platform in name when exists', async () => {
+    process.env.GITHUB_JOB = 'test-job'
+    process.env.TARGET_PLATFORM = tkgPlatformId
+    const targetPlatforms = await loadTargetPlatforms()    
+    const tkgPlatform = targetPlatforms ? targetPlatforms[tkgPlatformId] : "meh"
+    const config = await loadConfig()
+    const artifactName = await getArtifactName(config)
+    expect(artifactName).toBe(`assets-${process.env.GITHUB_JOB}-${tkgPlatform['kind']}-${tkgPlatform.version}`)
+  })   
+
   // TODO: Add all the failure scenarios. Trying to get an execution graph that does not exist, no public url defined, etc.
   it('Runs the GitHub action and succeeds', async () => {
     const executionGraph = await runAction()
