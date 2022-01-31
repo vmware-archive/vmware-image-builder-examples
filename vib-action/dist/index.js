@@ -117,7 +117,7 @@ const vibClient = axios_1.default.create({
     headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 });
 let cachedCspToken = null;
-let targetPlatforms;
+let targetPlatforms = {};
 const recordedStatuses = {};
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -253,7 +253,7 @@ function getExecutionGraph(executionGraphId) {
     return __awaiter(this, void 0, void 0, function* () {
         core.debug(`Getting execution graph with id ${executionGraphId}`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -280,7 +280,7 @@ function getExecutionGraphResult(executionGraphId) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info(`Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -309,7 +309,7 @@ function createPipeline(config) {
     return __awaiter(this, void 0, void 0, function* () {
         core.debug(`Config: ${config}`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -453,17 +453,26 @@ function loadTargetPlatforms() {
         try {
             const response = yield vibClient.get("/v1/target-platforms", { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
-            targetPlatforms = response.data;
+            for (const targetPlatform of response.data) {
+                targetPlatforms[targetPlatform.id] = {
+                    id: targetPlatform.id,
+                    kind: targetPlatform.kind,
+                    version: targetPlatform.version
+                };
+            }
+            core.debug(`Received target platforms: ${util_1.default.inspect(targetPlatforms)}`);
+            return targetPlatforms;
         }
         catch (err) {
+            // Don't fail action if we cannot fetch target platforms. Log error instead
+            core.error(`Could not fetch target platforms. Has the endpoint changed? `);
             if (axios_1.default.isAxiosError(err) && err.response) {
-                if (err.response.status === 404) {
-                    core.debug(err.response.data.detail);
-                    throw new Error(err.response.data.detail);
-                }
-                throw new Error(err.response.data.detail);
+                core.error(`Error code: ${err.response.status}. Message: ${err.response.statusText}`);
             }
-            throw err;
+            else {
+                core.error(`Error: ${err}`);
+            }
+            return {};
         }
     });
 }
@@ -481,7 +490,7 @@ function getDownloadVibPublicUrl() {
 function getRawReports(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-            throw new Error('VIB_PUBLIC_URL environment variable not found.');
+            core.setFailed('VIB_PUBLIC_URL environment variable not found.');
         }
         core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`);
         const reports = [];
@@ -518,7 +527,7 @@ exports.getRawReports = getRawReports;
 function getRawLogs(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-            throw new Error('VIB_PUBLIC_URL environment variable not found.');
+            core.setFailed('VIB_PUBLIC_URL environment variable not found.');
         }
         core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
         const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`);
@@ -566,7 +575,7 @@ function loadConfig() {
         }
         const folderName = path.join(root, baseFolder);
         if (!fs_1.default.existsSync(folderName)) {
-            throw new Error(`Could not find base folder at ${folderName}`);
+            core.setFailed(`Could not find base folder at ${folderName}`);
         }
         const filename = path.join(folderName, pipeline);
         if (!fs_1.default.existsSync(filename)) {
@@ -588,6 +597,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function reset() {
     return __awaiter(this, void 0, void 0, function* () {
         cachedCspToken = null;
+        targetPlatforms = {};
     });
 }
 exports.reset = reset;
