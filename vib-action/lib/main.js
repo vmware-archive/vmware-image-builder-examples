@@ -55,7 +55,7 @@ const vibClient = axios_1.default.create({
     headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 });
 let cachedCspToken = null;
-let targetPlatforms;
+let targetPlatforms = {};
 const recordedStatuses = {};
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -391,17 +391,26 @@ function loadTargetPlatforms() {
         try {
             const response = yield vibClient.get("/v1/target-platforms", { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
-            targetPlatforms = response.data;
+            for (const targetPlatform of response.data) {
+                targetPlatforms[targetPlatform.id] = {
+                    id: targetPlatform.id,
+                    kind: targetPlatform.kind,
+                    version: targetPlatform.version
+                };
+            }
+            core.debug(`Received target platforms: ${util_1.default.inspect(targetPlatforms)}`);
+            return targetPlatforms;
         }
         catch (err) {
+            // Don't fail action if we cannot fetch target platforms. Log error instead
+            core.error(`Could not fetch target platforms. Has the endpoint changed? `);
             if (axios_1.default.isAxiosError(err) && err.response) {
-                if (err.response.status === 404) {
-                    core.debug(err.response.data.detail);
-                    throw new Error(err.response.data.detail);
-                }
-                throw new Error(err.response.data.detail);
+                core.error(`Error code: ${err.response.status}. Message: ${err.response.statusText}`);
             }
-            throw err;
+            else {
+                core.error(`Error: ${err}`);
+            }
+            return {};
         }
     });
 }
@@ -526,6 +535,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function reset() {
     return __awaiter(this, void 0, void 0, function* () {
         cachedCspToken = null;
+        targetPlatforms = {};
     });
 }
 exports.reset = reset;
