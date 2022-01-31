@@ -191,7 +191,7 @@ function getExecutionGraph(executionGraphId) {
     return __awaiter(this, void 0, void 0, function* () {
         core.debug(`Getting execution graph with id ${executionGraphId}`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -218,7 +218,7 @@ function getExecutionGraphResult(executionGraphId) {
     return __awaiter(this, void 0, void 0, function* () {
         core.info(`Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -247,7 +247,7 @@ function createPipeline(config) {
     return __awaiter(this, void 0, void 0, function* () {
         core.debug(`Config: ${config}`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
-            throw new Error("VIB_PUBLIC_URL environment variable not found.");
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -428,7 +428,7 @@ function getDownloadVibPublicUrl() {
 function getRawReports(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-            throw new Error('VIB_PUBLIC_URL environment variable not found.');
+            core.setFailed('VIB_PUBLIC_URL environment variable not found.');
         }
         core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`);
         const reports = [];
@@ -465,7 +465,7 @@ exports.getRawReports = getRawReports;
 function getRawLogs(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-            throw new Error('VIB_PUBLIC_URL environment variable not found.');
+            core.setFailed('VIB_PUBLIC_URL environment variable not found.');
         }
         core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
         const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`);
@@ -513,7 +513,7 @@ function loadConfig() {
         }
         const folderName = path.join(root, baseFolder);
         if (!fs_1.default.existsSync(folderName)) {
-            throw new Error(`Could not find base folder at ${folderName}`);
+            core.setFailed(`Could not find base folder at ${folderName}`);
         }
         const filename = path.join(folderName, pipeline);
         if (!fs_1.default.existsSync(filename)) {
