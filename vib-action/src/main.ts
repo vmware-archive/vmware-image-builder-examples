@@ -13,13 +13,13 @@ const root = process.env.GITHUB_WORKSPACE
 
   //TODO timeouts in these two clients should be way shorter
 const cspClient = axios.create({
-  baseURL: `${process.env.CSP_API_URL}`,
+  baseURL: `${process.env.CSP_API_URL ? process.env.CSP_API_URL : constants.DEFAULT_CSP_API_URL}`,
   timeout: 15000,
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
 })
 
 const vibClient = axios.create({
-  baseURL: `${process.env.VIB_PUBLIC_URL}`,
+  baseURL: `${process.env.VIB_PUBLIC_URL ? process.env.VIB_PUBLIC_URL : constants.DEFAULT_VIB_PUBLIC_URL}`,
   timeout: 10000,
   headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 })
@@ -212,6 +212,7 @@ export async function getExecutionGraph(
   core.debug(`Getting execution graph with id ${executionGraphId}`)
   if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
     core.setFailed("VIB_PUBLIC_URL environment variable not found.")
+    return ""
   }
 
   const apiToken = await getToken({ timeout: constants.CSP_TIMEOUT })
@@ -308,7 +309,7 @@ export async function createPipeline(config: Config): Promise<string> {
 
 export async function readPipeline(config: Config): Promise<string> {
 
-  const folderName = path.join(root, constants.DEFAULT_BASE_FOLDER)
+  const folderName = path.join(root, config.baseFolder)
   const filename = path.join(folderName, config.pipeline)
   core.debug(`Reading pipeline file from ${filename}`)
   let pipeline = fs.readFileSync(filename).toString()
@@ -338,9 +339,6 @@ export async function readPipeline(config: Config): Promise<string> {
 }
 
 export async function getToken(input: CspInput): Promise<string> {
-  //const config = loadConfig()
-  core.debug(`Checking CSP API token... Cached token: ${cachedCspToken}`)
-  core.debug(typeof process.env.CSP_API_TOKEN)
   if (typeof process.env.CSP_API_TOKEN === "undefined") {
     core.setFailed("CSP_API_TOKEN secret not found.")
     return ""
