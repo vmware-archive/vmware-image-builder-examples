@@ -173,6 +173,7 @@ export function displayExecutionGraph(
   for (const task of executionGraph['tasks']) {
     const taskId = task['task_id']
     let taskName = task['action_id']
+    const taskError = task['error']
     const taskStatus = task['status']
     const recordedStatus = recordedStatuses[taskId]
 
@@ -190,7 +191,7 @@ export function displayExecutionGraph(
       core.info(`Task ${taskName} is now in status ${taskStatus}`)
       switch(taskStatus) {
         case 'FAILED': 
-          core.error(`Task ${taskName} has failed`)
+          core.error(`Task ${taskName} has failed. Error: ${taskError}`)
           break
         case 'SKIPPED':
           core.warning(`Task ${taskName} has been skipped`)
