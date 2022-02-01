@@ -31,7 +31,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = void 0;
 const artifact = __importStar(require("@actions/artifact"));
 const constants = __importStar(require("./constants"));
 const core = __importStar(require("@actions/core"));
@@ -45,24 +45,30 @@ const root = process.env.GITHUB_WORKSPACE
     : path.join(__dirname, "..");
 //TODO timeouts in these two clients should be way shorter
 const cspClient = axios_1.default.create({
-    baseURL: `${process.env.CSP_API_URL ? process.env.CSP_API_URL : constants.DEFAULT_CSP_API_URL}`,
+    baseURL: `${process.env.CSP_API_URL
+        ? process.env.CSP_API_URL
+        : constants.DEFAULT_CSP_API_URL}`,
     timeout: 15000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 const vibClient = axios_1.default.create({
-    baseURL: `${process.env.VIB_PUBLIC_URL ? process.env.VIB_PUBLIC_URL : constants.DEFAULT_VIB_PUBLIC_URL}`,
+    baseURL: `${process.env.VIB_PUBLIC_URL
+        ? process.env.VIB_PUBLIC_URL
+        : constants.DEFAULT_VIB_PUBLIC_URL}`,
     timeout: 10000,
     headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 });
 let cachedCspToken = null;
 let targetPlatforms = {};
 const recordedStatuses = {};
+let eventConfig;
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         //TODO: Refactor so we don't need to do this check
         if (process.env["JEST_TESTS"] === "true")
             return; // skip running logic when importing class for npm test
         loadTargetPlatforms(); // load target platforms in the background
+        yield loadEventConfig();
         yield runAction();
     });
 }
@@ -100,7 +106,7 @@ function runAction() {
                 const artifactClient = artifact.create();
                 const artifactName = getArtifactName(config);
                 const options = {
-                    continueOnError: true
+                    continueOnError: true,
                 };
                 const executionGraphFolder = getFolder(executionGraphId);
                 const uploadResult = yield artifactClient.uploadArtifact(artifactName, files, executionGraphFolder, options);
@@ -114,8 +120,8 @@ function runAction() {
                 core.warning("ACTIONS_RUNTIME_TOKEN env variable not found. Skipping upload artifacts.");
             }
             core.info("Processing execution graph result.");
-            if (!result['passed']) {
-                core.setFailed('Some pipeline tests have failed. Please check the execution graph report for details.');
+            if (!result["passed"]) {
+                core.setFailed("Some pipeline tests have failed. Please check the execution graph report for details.");
             }
             if (!Object.values(constants.EndStates).includes(executionGraph["status"])) {
                 core.setFailed(`Execution graph ${executionGraphId} has timed out.`);
@@ -153,31 +159,32 @@ function getArtifactName(config) {
 }
 exports.getArtifactName = getArtifactName;
 function displayExecutionGraph(executionGraph) {
-    for (const task of executionGraph['tasks']) {
-        const taskId = task['task_id'];
-        let taskName = task['action_id'];
-        const taskStatus = task['status'];
+    for (const task of executionGraph["tasks"]) {
+        const taskId = task["task_id"];
+        let taskName = task["action_id"];
+        const taskStatus = task["status"];
         const recordedStatus = recordedStatuses[taskId];
-        if (taskName === 'deployment') {
+        if (taskName === "deployment") {
             // find the associated task
-            const next = executionGraph['tasks'].find(it => it['task_id'] === task['next_tasks'][0]);
-            taskName = `${taskName} ( ${next['action_id']} )`;
+            const next = executionGraph["tasks"].find((it) => it["task_id"] === task["next_tasks"][0]);
+            taskName = `${taskName} ( ${next["action_id"]} )`;
         }
-        else if (taskName === 'undeployment') {
+        else if (taskName === "undeployment") {
             // find the associated task
-            const prev = executionGraph['tasks'].find(it => it['task_id'] === task['previous_tasks'][0]);
-            taskName = `${taskName} ( ${prev['action_id']} )`;
+            const prev = executionGraph["tasks"].find((it) => it["task_id"] === task["previous_tasks"][0]);
+            taskName = `${taskName} ( ${prev["action_id"]} )`;
         }
-        if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
+        if (typeof recordedStatus === "undefined" ||
+            taskStatus !== recordedStatus) {
             core.info(`Task ${taskName} is now in status ${taskStatus}`);
             switch (taskStatus) {
-                case 'FAILED':
+                case "FAILED":
                     core.error(`Task ${taskName} has failed`);
                     break;
-                case 'SKIPPED':
+                case "SKIPPED":
                     core.warning(`Task ${taskName} has been skipped`);
                     break;
-                case 'SUCCEEDED':
+                case "SUCCEEDED":
                     //TODO: Use coloring to print this in green
                     core.info(`Task ${taskName} has finished successfully`);
                     break;
@@ -226,7 +233,7 @@ function getExecutionGraphResult(executionGraphId) {
             const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const result = response.data;
-            const resultFile = path.join(getFolder(executionGraphId), 'result.json');
+            const resultFile = path.join(getFolder(executionGraphId), "result.json");
             fs_1.default.writeFileSync(resultFile, JSON.stringify(result));
             return result;
         }
@@ -341,15 +348,15 @@ function loadAllData(executionGraph) {
     return __awaiter(this, void 0, void 0, function* () {
         let files = [];
         // Add result
-        files.push(path.join(getFolder(executionGraph['execution_graph_id']), 'result.json'));
+        files.push(path.join(getFolder(executionGraph["execution_graph_id"]), "result.json"));
         //TODO assertions
-        for (const task of executionGraph['tasks']) {
-            const logFile = yield getRawLogs(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+        for (const task of executionGraph["tasks"]) {
+            const logFile = yield getRawLogs(executionGraph["execution_graph_id"], task["action_id"], task["task_id"]);
             if (logFile) {
                 core.debug(`Downloaded file ${logFile}`);
                 files.push(logFile);
             }
-            const reports = yield getRawReports(executionGraph['execution_graph_id'], task['action_id'], task['task_id']);
+            const reports = yield getRawReports(executionGraph["execution_graph_id"], task["action_id"], task["task_id"]);
             files = [...files, ...reports];
         }
         return files;
@@ -358,7 +365,7 @@ function loadAllData(executionGraph) {
 exports.loadAllData = loadAllData;
 function getLogsFolder(executionGraphId) {
     //TODO validate inputs
-    const logsFolder = path.join(getFolder(executionGraphId), '/logs');
+    const logsFolder = path.join(getFolder(executionGraphId), "/logs");
     if (!fs_1.default.existsSync(logsFolder)) {
         core.debug(`Creating logs folder ${logsFolder}`);
         fs_1.default.mkdirSync(logsFolder, { recursive: true });
@@ -368,7 +375,7 @@ function getLogsFolder(executionGraphId) {
 exports.getLogsFolder = getLogsFolder;
 function getReportsFolder(executionGraphId) {
     //TODO validate inputs
-    const reportsFolder = path.join(getFolder(executionGraphId), '/reports');
+    const reportsFolder = path.join(getFolder(executionGraphId), "/reports");
     if (!fs_1.default.existsSync(reportsFolder)) {
         core.debug(`Creating logs reports ${reportsFolder}`);
         fs_1.default.mkdirSync(reportsFolder, { recursive: true });
@@ -387,13 +394,15 @@ function loadTargetPlatforms() {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get("/v1/target-platforms", { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield vibClient.get("/v1/target-platforms", {
+                headers: { Authorization: `Bearer ${apiToken}` },
+            });
             //TODO: Handle response codes
             for (const targetPlatform of response.data) {
                 targetPlatforms[targetPlatform.id] = {
                     id: targetPlatform.id,
                     kind: targetPlatform.kind,
-                    version: targetPlatform.version
+                    version: targetPlatform.version,
                 };
             }
             core.debug(`Received target platforms: ${util_1.default.inspect(targetPlatforms)}`);
@@ -413,6 +422,28 @@ function loadTargetPlatforms() {
     });
 }
 exports.loadTargetPlatforms = loadTargetPlatforms;
+/**
+ * Loads the event github event configuration from the environment variable if existing
+ */
+function loadEventConfig() {
+    return __awaiter(this, void 0, void 0, function* () {
+        if (typeof process.env.GITHUB_EVENT_PATH === "undefined") {
+            core.warning("Could not find GITHUB_EVENT_PATH environment variable. Will not have any action event context.");
+            return {};
+        }
+        core.info(`Loading event configuration from ${process.env.GITHUB_EVENT_PATH}`);
+        try {
+            eventConfig = JSON.parse(fs_1.default.readFileSync(process.env.GITHUB_EVENT_PATH).toString());
+            core.debug(`Loaded config: ${util_1.default.inspect(eventConfig)}`);
+            return eventConfig;
+        }
+        catch (err) {
+            core.warning(`Could not read content from ${process.env.GITHUB_EVENT_PATH}. Error: ${err}`);
+            return {};
+        }
+    });
+}
+exports.loadEventConfig = loadEventConfig;
 function getFolder(executionGraphId) {
     const folder = path.join(root, "outputs", executionGraphId);
     if (!fs_1.default.existsSync(folder)) {
@@ -421,12 +452,14 @@ function getFolder(executionGraphId) {
     return folder;
 }
 function getDownloadVibPublicUrl() {
-    return (typeof process.env.VIB_REPLACE_PUBLIC_URL !== 'undefined') ? process.env.VIB_REPLACE_PUBLIC_URL : process.env.VIB_PUBLIC_URL;
+    return typeof process.env.VIB_REPLACE_PUBLIC_URL !== "undefined"
+        ? process.env.VIB_REPLACE_PUBLIC_URL
+        : process.env.VIB_PUBLIC_URL;
 }
 function getRawReports(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-            core.setFailed('VIB_PUBLIC_URL environment variable not found.');
+        if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`);
         const reports = [];
@@ -437,10 +470,10 @@ function getRawReports(executionGraphId, taskName, taskId) {
             const result = response.data;
             if (result.raw_reports && result.raw_reports.length > 0) {
                 for (const raw_report of result.raw_reports) {
-                    const reportFilename = `${taskName}-${taskId}-report-${(0, sanitize_1.sanitize)(raw_report.id, '-')}`;
+                    const reportFilename = `${taskName}-${taskId}-report-${(0, sanitize_1.sanitize)(raw_report.id, "-")}`;
                     //TODO: Can VIB return a hint on the content type?
                     const reportFile = path.join(getReportsFolder(executionGraphId), `${reportFilename}`);
-                    const binary = Buffer.from(raw_report.raw_report, 'base64');
+                    const binary = Buffer.from(raw_report.raw_report, "base64");
                     fs_1.default.writeFileSync(reportFile, binary);
                     reports.push(reportFile);
                 }
@@ -462,8 +495,8 @@ function getRawReports(executionGraphId, taskName, taskId) {
 exports.getRawReports = getRawReports;
 function getRawLogs(executionGraphId, taskName, taskId) {
     return __awaiter(this, void 0, void 0, function* () {
-        if (typeof process.env.VIB_PUBLIC_URL === 'undefined') {
-            core.setFailed('VIB_PUBLIC_URL environment variable not found.');
+        if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
+            core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
         core.info(`Downloading logs for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`);
         const logFile = path.join(getLogsFolder(executionGraphId), `${taskName}-${taskId}.log`);
@@ -490,16 +523,27 @@ function getRawLogs(executionGraphId, taskName, taskId) {
 exports.getRawLogs = getRawLogs;
 function loadConfig() {
     return __awaiter(this, void 0, void 0, function* () {
+        //TODO: Replace SHA_ARCHIVE with something more meaningful like PR_HEAD_TARBALL or some other syntax. Perhaps something 
+        //      we could do would be to allow to use as variables to the actions any of the data from the GitHub event from the 
+        //      GITHUB_EVENT_PATH file. 
+        //      For the time being I'm using pull_request.head.repo.url plus the ref as the artifact name and reusing shaArchive 
+        //      but we need to redo this in the very short term
         let shaArchive;
-        // Warn on rqeuirements for HELM_CHART variable replacement
-        if (typeof process.env.GITHUB_SHA === 'undefined') {
-            core.warning('Could not find a valid GitHub SHA on environment. Is the GitHub action running as part of PR or Push flows?');
-        }
-        else if (typeof process.env.GITHUB_REPOSITORY === 'undefined') {
-            core.warning('Could not find a valid GitHub Repository on environment. Is the GitHub action running as part of PR or Push flows?');
+        if (eventConfig) {
+            shaArchive = `${eventConfig["pull_request"]["head"]["repo"]["url"]}/tarball/${eventConfig["pull_request"]["head"]["ref"]}`;
         }
         else {
-            shaArchive = `https://github.com/${process.env.GITHUB_REPOSITORY}/archive/${process.env.GITHUB_SHA}.zip`;
+            // fall back to the old logic if needed
+            // Warn on rqeuirements for HELM_CHART variable replacement
+            if (typeof process.env.GITHUB_SHA === "undefined") {
+                core.warning("Could not find a valid GitHub SHA on environment. Is the GitHub action running as part of PR or Push flows?");
+            }
+            else if (typeof process.env.GITHUB_REPOSITORY === "undefined") {
+                core.warning("Could not find a valid GitHub Repository on environment. Is the GitHub action running as part of PR or Push flows?");
+            }
+            else {
+                shaArchive = `https://github.com/${process.env.GITHUB_REPOSITORY}/archive/${process.env.GITHUB_SHA}.zip`;
+            }
         }
         let pipeline = core.getInput("pipeline");
         let baseFolder = core.getInput("config");
@@ -521,7 +565,7 @@ function loadConfig() {
             pipeline,
             baseFolder,
             shaArchive,
-            targetPlatform: process.env.TARGET_PLATFORM
+            targetPlatform: process.env.TARGET_PLATFORM,
         };
     });
 }
