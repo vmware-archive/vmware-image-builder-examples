@@ -545,6 +545,7 @@ function loadConfig() {
                 shaArchive = `https://github.com/${process.env.GITHUB_REPOSITORY}/archive/${process.env.GITHUB_SHA}.zip`;
             }
         }
+        core.info(`SHA_ARCHIVE will resolve to ${shaArchive}`);
         let pipeline = core.getInput("pipeline");
         let baseFolder = core.getInput("config");
         if (pipeline === "") {
