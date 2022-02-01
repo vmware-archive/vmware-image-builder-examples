@@ -5,13 +5,9 @@ on:
       - main
     paths:
       - 'vib-action/*'
-    paths-ignore:
-      - '**.md'
   pull_request:
     paths:
       - 'vib-action/*'
-    paths-ignore:
-      - '**.md'
 jobs:
   build:
     name: Build
