@@ -188,14 +188,18 @@ export function getArtifactName(config: Config): string {
   return `assets-${process.env.GITHUB_JOB}`;
 }
 
-export function displayExecutionGraph(executionGraph: Object): void {
-  for (const task of executionGraph["tasks"]) {
-    const taskId = task["task_id"];
-    let taskName = task["action_id"];
-    const taskStatus = task["status"];
-    const recordedStatus = recordedStatuses[taskId];
+export function displayExecutionGraph(
+  executionGraph: Object
+): void {
+  
+  for (const task of executionGraph['tasks']) {
+    const taskId = task['task_id']
+    let taskName = task['action_id']
+    const taskError = task['error']
+    const taskStatus = task['status']
+    const recordedStatus = recordedStatuses[taskId]
 
-    if (taskName === "deployment") {
+    if (taskName === 'deployment') {
       // find the associated task
       const next = executionGraph["tasks"].find(
         (it) => it["task_id"] === task["next_tasks"][0]
@@ -209,19 +213,16 @@ export function displayExecutionGraph(executionGraph: Object): void {
       taskName = `${taskName} ( ${prev["action_id"]} )`;
     }
 
-    if (
-      typeof recordedStatus === "undefined" ||
-      taskStatus !== recordedStatus
-    ) {
-      core.info(`Task ${taskName} is now in status ${taskStatus}`);
-      switch (taskStatus) {
-        case "FAILED":
-          core.error(`Task ${taskName} has failed`);
-          break;
-        case "SKIPPED":
-          core.warning(`Task ${taskName} has been skipped`);
-          break;
-        case "SUCCEEDED":
+    if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
+      core.info(`Task ${taskName} is now in status ${taskStatus}`)
+      switch(taskStatus) {
+        case 'FAILED': 
+          core.error(`Task ${taskName} has failed. Error: ${taskError}`)
+          break
+        case 'SKIPPED':
+          core.warning(`Task ${taskName} has been skipped`)
+          break
+        case 'SUCCEEDED':
           //TODO: Use coloring to print this in green
           core.info(`Task ${taskName} has finished successfully`);
           break;
