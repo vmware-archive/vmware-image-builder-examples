@@ -5,9 +5,11 @@ on:
       - main
     paths:
       - 'vib-action/*'
+      - '.github/workflows/validate.yaml'
   pull_request:
     paths:
       - 'vib-action/*'
+      - '.github/workflows/validate.yaml'
 jobs:
   build:
     name: Build
