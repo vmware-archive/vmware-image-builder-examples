@@ -7,7 +7,7 @@ require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -52,6 +52,14 @@ var EndStates;
  * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
  */
 exports.DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1'; // GKE
+/**
+ * Default VIB public URL. This endpoint requires authentication
+ */
+exports.DEFAULT_VIB_PUBLIC_URL = "https://cp.bromelia.vmware.com";
+/**
+ * Default URL to the VMware Cloud Services Platform. This service provides identity access
+ */
+exports.DEFAULT_CSP_API_URL = "https://console.cloud.vmware.com";
 //# sourceMappingURL=constants.js.map
 
 /***/ }),
@@ -107,12 +115,12 @@ const root = process.env.GITHUB_WORKSPACE
     : path.join(__dirname, "..");
 //TODO timeouts in these two clients should be way shorter
 const cspClient = axios_1.default.create({
-    baseURL: `${process.env.CSP_API_URL}`,
+    baseURL: `${process.env.CSP_API_URL ? process.env.CSP_API_URL : constants.DEFAULT_CSP_API_URL}`,
     timeout: 15000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 const vibClient = axios_1.default.create({
-    baseURL: `${process.env.VIB_PUBLIC_URL}`,
+    baseURL: `${process.env.VIB_PUBLIC_URL ? process.env.VIB_PUBLIC_URL : constants.DEFAULT_VIB_PUBLIC_URL}`,
     timeout: 10000,
     headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 });
@@ -254,6 +262,7 @@ function getExecutionGraph(executionGraphId) {
         core.debug(`Getting execution graph with id ${executionGraphId}`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
             core.setFailed("VIB_PUBLIC_URL environment variable not found.");
+            return "";
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -338,7 +347,7 @@ function createPipeline(config) {
 exports.createPipeline = createPipeline;
 function readPipeline(config) {
     return __awaiter(this, void 0, void 0, function* () {
-        const folderName = path.join(root, constants.DEFAULT_BASE_FOLDER);
+        const folderName = path.join(root, config.baseFolder);
         const filename = path.join(folderName, config.pipeline);
         core.debug(`Reading pipeline file from ${filename}`);
         let pipeline = fs_1.default.readFileSync(filename).toString();
@@ -368,9 +377,6 @@ function readPipeline(config) {
 exports.readPipeline = readPipeline;
 function getToken(input) {
     return __awaiter(this, void 0, void 0, function* () {
-        //const config = loadConfig()
-        core.debug(`Checking CSP API token... Cached token: ${cachedCspToken}`);
-        core.debug(typeof process.env.CSP_API_TOKEN);
         if (typeof process.env.CSP_API_TOKEN === "undefined") {
             core.setFailed("CSP_API_TOKEN secret not found.");
             return "";

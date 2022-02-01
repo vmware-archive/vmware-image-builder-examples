@@ -45,12 +45,12 @@ const root = process.env.GITHUB_WORKSPACE
     : path.join(__dirname, "..");
 //TODO timeouts in these two clients should be way shorter
 const cspClient = axios_1.default.create({
-    baseURL: `${process.env.CSP_API_URL}`,
+    baseURL: `${process.env.CSP_API_URL ? process.env.CSP_API_URL : constants.DEFAULT_CSP_API_URL}`,
     timeout: 15000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
 const vibClient = axios_1.default.create({
-    baseURL: `${process.env.VIB_PUBLIC_URL}`,
+    baseURL: `${process.env.VIB_PUBLIC_URL ? process.env.VIB_PUBLIC_URL : constants.DEFAULT_VIB_PUBLIC_URL}`,
     timeout: 10000,
     headers: { "Content-Type": "application/json", "User-Agent": "VIB/0.1" },
 });
@@ -192,6 +192,7 @@ function getExecutionGraph(executionGraphId) {
         core.debug(`Getting execution graph with id ${executionGraphId}`);
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
             core.setFailed("VIB_PUBLIC_URL environment variable not found.");
+            return "";
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
@@ -276,7 +277,7 @@ function createPipeline(config) {
 exports.createPipeline = createPipeline;
 function readPipeline(config) {
     return __awaiter(this, void 0, void 0, function* () {
-        const folderName = path.join(root, constants.DEFAULT_BASE_FOLDER);
+        const folderName = path.join(root, config.baseFolder);
         const filename = path.join(folderName, config.pipeline);
         core.debug(`Reading pipeline file from ${filename}`);
         let pipeline = fs_1.default.readFileSync(filename).toString();
@@ -306,9 +307,6 @@ function readPipeline(config) {
 exports.readPipeline = readPipeline;
 function getToken(input) {
     return __awaiter(this, void 0, void 0, function* () {
-        //const config = loadConfig()
-        core.debug(`Checking CSP API token... Cached token: ${cachedCspToken}`);
-        core.debug(typeof process.env.CSP_API_TOKEN);
         if (typeof process.env.CSP_API_TOKEN === "undefined") {
             core.setFailed("CSP_API_TOKEN secret not found.");
             return "";
