@@ -582,10 +582,8 @@ export async function getRawReports(
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       // Don't throw error if we cannot fetch a report
-      core.error(
-        `Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`
-      );
-      return [];
+      core.warning(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      return []
     } else {
       throw err;
     }
@@ -622,10 +620,8 @@ export async function getRawLogs(
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       // Don't throw error if we cannot fetch a log
-      core.error(
-        `Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`
-      );
-      return null;
+      core.warning(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      return null
     } else {
       throw err;
     }
