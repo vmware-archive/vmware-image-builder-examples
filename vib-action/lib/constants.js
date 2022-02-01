@@ -44,7 +44,7 @@ var EndStates;
  *
  * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
  */
-exports.DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1'; // GKE
+exports.DEFAULT_TARGET_PLATFORM = "91d398a2-25c4-4cda-8732-75a3cfc179a1"; // GKE
 /**
  * Default VIB public URL. This endpoint requires authentication
  */
