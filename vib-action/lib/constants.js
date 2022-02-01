@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -45,4 +45,12 @@ var EndStates;
  * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
  */
 exports.DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1'; // GKE
+/**
+ * Default VIB public URL. This endpoint requires authentication
+ */
+exports.DEFAULT_VIB_PUBLIC_URL = "https://cp.bromelia.vmware.com";
+/**
+ * Default URL to the VMware Cloud Services Platform. This service provides identity access
+ */
+exports.DEFAULT_CSP_API_URL = "https://console.cloud.vmware.com";
 //# sourceMappingURL=constants.js.map
