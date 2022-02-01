@@ -229,12 +229,13 @@ function getArtifactName(config) {
 }
 exports.getArtifactName = getArtifactName;
 function displayExecutionGraph(executionGraph) {
-    for (const task of executionGraph["tasks"]) {
-        const taskId = task["task_id"];
-        let taskName = task["action_id"];
-        const taskStatus = task["status"];
+    for (const task of executionGraph['tasks']) {
+        const taskId = task['task_id'];
+        let taskName = task['action_id'];
+        const taskError = task['error'];
+        const taskStatus = task['status'];
         const recordedStatus = recordedStatuses[taskId];
-        if (taskName === "deployment") {
+        if (taskName === 'deployment') {
             // find the associated task
             const next = executionGraph["tasks"].find((it) => it["task_id"] === task["next_tasks"][0]);
             taskName = `${taskName} ( ${next["action_id"]} )`;
@@ -244,17 +245,16 @@ function displayExecutionGraph(executionGraph) {
             const prev = executionGraph["tasks"].find((it) => it["task_id"] === task["previous_tasks"][0]);
             taskName = `${taskName} ( ${prev["action_id"]} )`;
         }
-        if (typeof recordedStatus === "undefined" ||
-            taskStatus !== recordedStatus) {
+        if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
             core.info(`Task ${taskName} is now in status ${taskStatus}`);
             switch (taskStatus) {
-                case "FAILED":
-                    core.error(`Task ${taskName} has failed`);
+                case 'FAILED':
+                    core.error(`Task ${taskName} has failed. Error: ${taskError}`);
                     break;
-                case "SKIPPED":
+                case 'SKIPPED':
                     core.warning(`Task ${taskName} has been skipped`);
                     break;
-                case "SUCCEEDED":
+                case 'SUCCEEDED':
                     //TODO: Use coloring to print this in green
                     core.info(`Task ${taskName} has finished successfully`);
                     break;
@@ -553,7 +553,7 @@ function getRawReports(executionGraphId, taskName, taskId) {
         catch (err) {
             if (axios_1.default.isAxiosError(err) && err.response) {
                 // Don't throw error if we cannot fetch a report
-                core.error(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`);
+                core.warning(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`);
                 return [];
             }
             else {
@@ -581,7 +581,7 @@ function getRawLogs(executionGraphId, taskName, taskId) {
         catch (err) {
             if (axios_1.default.isAxiosError(err) && err.response) {
                 // Don't throw error if we cannot fetch a log
-                core.error(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`);
+                core.warning(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`);
                 return null;
             }
             else {
