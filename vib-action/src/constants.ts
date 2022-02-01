@@ -47,3 +47,13 @@ export enum EndStates {
  * @default GKE: 91d398a2-25c4-4cda-8732-75a3cfc179a1
  */
  export const DEFAULT_TARGET_PLATFORM = '91d398a2-25c4-4cda-8732-75a3cfc179a1' // GKE
+
+ /**
+  * Default VIB public URL. This endpoint requires authentication
+  */
+ export const DEFAULT_VIB_PUBLIC_URL = "https://cp.bromelia.vmware.com"
+
+/**
+ * Default URL to the VMware Cloud Services Platform. This service provides identity access
+ */
+ export const DEFAULT_CSP_API_URL = "https://console.cloud.vmware.com"

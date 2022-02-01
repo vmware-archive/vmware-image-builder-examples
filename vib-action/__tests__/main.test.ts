@@ -46,11 +46,23 @@ describe("VIB", () => {
   beforeEach(async () => {
     jest.resetModules()
     process.env = { ...STARTING_ENV }
+    process.env["VIB_PUBLIC_URL"] = constants.DEFAULT_VIB_PUBLIC_URL
+    process.env["CSP_API_URL"] = constants.DEFAULT_CSP_API_URL
     reset()
   })
 
   afterEach(async () => {
     jest.clearAllMocks()
+    let logsFolder
+    try {
+      // Remove resources and logs if exist
+      logsFolder = getLogsFolder(fixedExecutionGraphId)
+      if (fs.existsSync(logsFolder)) {
+        fs.rm(logsFolder, { recursive : true })
+      }
+    } catch (err) {
+      console.log(`Could not remove logs folder ${logsFolder}. Error: ${err}`)
+    }
   })
 
   afterAll(async () => {})
@@ -192,6 +204,15 @@ describe("VIB", () => {
     expect(pipeline).not.toEqual("")
   })  
 
+  it('Reads a pipeline from a customized location other than default and has some content', async () => {
+    process.env["INPUT_CONFIG"] = ".cp-other"
+    process.env["INPUT_PIPELINE"] = "cp-pipeline-other.json"
+    const config = await loadConfig()
+    const pipeline = await readPipeline(config)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).not.toEqual("")
+  })  
+
   it('Reads a pipeline and does not template sha archive if not needed', async () => {
     process.env.GITHUB_SHA='aacf48f14ed73e4b368ab66abf4742b0e9afae54'
     process.env.GITHUB_REPOSITORY='vmware/vib-action'
@@ -242,7 +263,7 @@ describe("VIB", () => {
     }
   })
 
-  it('Fetches multiple execution graph logs ', async () => {
+  it('Fetches multiple execution graph logs', async () => {
     const executionGraph = await getExecutionGraph(fixedExecutionGraphId)
     await loadAllData(executionGraph)
 
