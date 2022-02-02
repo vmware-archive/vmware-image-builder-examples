@@ -77,7 +77,7 @@ function run() {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function runAction() {
     return __awaiter(this, void 0, void 0, function* () {
-        core.debug(`Running github action.`);
+        core.debug("Running github action.");
         const config = yield loadConfig();
         const startTime = Date.now();
         try {
@@ -159,32 +159,33 @@ function getArtifactName(config) {
 }
 exports.getArtifactName = getArtifactName;
 function displayExecutionGraph(executionGraph) {
-    for (const task of executionGraph['tasks']) {
-        const taskId = task['task_id'];
-        let taskName = task['action_id'];
-        const taskError = task['error'];
-        const taskStatus = task['status'];
+    for (const task of executionGraph["tasks"]) {
+        const taskId = task["task_id"];
+        let taskName = task["action_id"];
+        const taskError = task["error"];
+        const taskStatus = task["status"];
         const recordedStatus = recordedStatuses[taskId];
-        if (taskName === 'deployment') {
+        if (taskName === "deployment") {
             // find the associated task
-            const next = executionGraph["tasks"].find((it) => it["task_id"] === task["next_tasks"][0]);
+            const next = executionGraph["tasks"].find(it => it["task_id"] === task["next_tasks"][0]);
             taskName = `${taskName} ( ${next["action_id"]} )`;
         }
         else if (taskName === "undeployment") {
             // find the associated task
-            const prev = executionGraph["tasks"].find((it) => it["task_id"] === task["previous_tasks"][0]);
+            const prev = executionGraph["tasks"].find(it => it["task_id"] === task["previous_tasks"][0]);
             taskName = `${taskName} ( ${prev["action_id"]} )`;
         }
-        if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
+        if (typeof recordedStatus === "undefined" ||
+            taskStatus !== recordedStatus) {
             core.info(`Task ${taskName} is now in status ${taskStatus}`);
             switch (taskStatus) {
-                case 'FAILED':
+                case "FAILED":
                     core.error(`Task ${taskName} has failed. Error: ${taskError}`);
                     break;
-                case 'SKIPPED':
+                case "SKIPPED":
                     core.warning(`Task ${taskName} has been skipped`);
                     break;
-                case 'SUCCEEDED':
+                case "SUCCEEDED":
                     //TODO: Use coloring to print this in green
                     core.info(`Task ${taskName} has finished successfully`);
                     break;
@@ -351,6 +352,9 @@ function loadAllData(executionGraph) {
         files.push(path.join(getFolder(executionGraph["execution_graph_id"]), "result.json"));
         //TODO assertions
         for (const task of executionGraph["tasks"]) {
+            if (task["status"] === "SKIPPED") {
+                continue;
+            }
             const logFile = yield getRawLogs(executionGraph["execution_graph_id"], task["action_id"], task["task_id"]);
             if (logFile) {
                 core.debug(`Downloaded file ${logFile}`);
@@ -523,10 +527,10 @@ function getRawLogs(executionGraphId, taskName, taskId) {
 exports.getRawLogs = getRawLogs;
 function loadConfig() {
     return __awaiter(this, void 0, void 0, function* () {
-        //TODO: Replace SHA_ARCHIVE with something more meaningful like PR_HEAD_TARBALL or some other syntax. Perhaps something 
-        //      we could do would be to allow to use as variables to the actions any of the data from the GitHub event from the 
-        //      GITHUB_EVENT_PATH file. 
-        //      For the time being I'm using pull_request.head.repo.url plus the ref as the artifact name and reusing shaArchive 
+        //TODO: Replace SHA_ARCHIVE with something more meaningful like PR_HEAD_TARBALL or some other syntax. Perhaps something
+        //      we could do would be to allow to use as variables to the actions any of the data from the GitHub event from the
+        //      GITHUB_EVENT_PATH file.
+        //      For the time being I'm using pull_request.head.repo.url plus the ref as the artifact name and reusing shaArchive
         //      but we need to redo this in the very short term
         let shaArchive;
         if (eventConfig) {
@@ -573,7 +577,7 @@ function loadConfig() {
 exports.loadConfig = loadConfig;
 /*eslint-disable @typescript-eslint/explicit-function-return-type, @typescript-eslint/promise-function-async*/
 //TODO: Enable linter
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 /*eslint-enable */
 function reset() {
     return __awaiter(this, void 0, void 0, function* () {

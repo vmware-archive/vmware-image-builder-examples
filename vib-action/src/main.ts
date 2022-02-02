@@ -423,6 +423,10 @@ export async function loadAllData(executionGraph: Object): Promise<string[]> {
 
   //TODO assertions
   for (const task of executionGraph["tasks"]) {
+    if (task["status"] === "SKIPPED") {
+      continue
+    }
+
     const logFile = await getRawLogs(
       executionGraph["execution_graph_id"],
       task["action_id"],
