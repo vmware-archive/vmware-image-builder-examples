@@ -423,10 +423,10 @@ export async function loadAllData(executionGraph: Object): Promise<string[]> {
 
   //TODO assertions
   for (const task of executionGraph["tasks"]) {
-    if (task['status'] === "SKIPPED") {
+    if (task["status"] === "SKIPPED") {
       continue
     }
-    
+
     const logFile = await getRawLogs(
       executionGraph["execution_graph_id"],
       task["action_id"],
@@ -454,11 +454,9 @@ export function getLogsFolder(executionGraphId: string): string {
   if (!fs.existsSync(logsFolder)) {
     core.debug(`Creating logs folder ${logsFolder}`)
     fs.mkdirSync(logsFolder, { recursive: true })
-  } 
-
+  }
 
   return logsFolder
- 
 }
 
 function getReportsFolder(executionGraphId: string): string {
