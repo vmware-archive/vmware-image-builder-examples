@@ -33,29 +33,29 @@ const vibClient = axios.create({
 })
 
 interface Config {
-  pipeline: string;
-  baseFolder: string;
-  shaArchive: string;
-  targetPlatform: string | undefined;
+  pipeline: string
+  baseFolder: string
+  shaArchive: string
+  targetPlatform: string | undefined
 }
 
 interface TargetPlatform {
-  id: string;
-  kind: string;
-  version: string;
+  id: string
+  kind: string
+  version: string
 }
 
 type TargetPlatformsMap = {
-  [key: string]: TargetPlatform;
+  [key: string]: TargetPlatform
 }
 
 interface CspToken {
-  access_token: string;
-  timestamp: number;
+  access_token: string
+  timestamp: number
 }
 
 interface CspInput {
-  timeout: number;
+  timeout: number
 }
 
 let cachedCspToken: CspToken | null = null
@@ -77,7 +77,7 @@ async function run(): Promise<void> {
 //TODO: Enable linter
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function runAction(): Promise<any> {
-  core.debug(`Running github action.`)
+  core.debug("Running github action.")
   const config = await loadConfig()
   const startTime = Date.now()
 
@@ -188,41 +188,41 @@ export function getArtifactName(config: Config): string {
   return `assets-${process.env.GITHUB_JOB}`
 }
 
-export function displayExecutionGraph(
-  executionGraph: Object
-): void {
-  
-  for (const task of executionGraph['tasks']) {
-    const taskId = task['task_id']
-    let taskName = task['action_id']
-    const taskError = task['error']
-    const taskStatus = task['status']
+export function displayExecutionGraph(executionGraph: Object): void {
+  for (const task of executionGraph["tasks"]) {
+    const taskId = task["task_id"]
+    let taskName = task["action_id"]
+    const taskError = task["error"]
+    const taskStatus = task["status"]
     const recordedStatus = recordedStatuses[taskId]
 
-    if (taskName === 'deployment') {
+    if (taskName === "deployment") {
       // find the associated task
       const next = executionGraph["tasks"].find(
-        (it) => it["task_id"] === task["next_tasks"][0]
+        it => it["task_id"] === task["next_tasks"][0]
       )
       taskName = `${taskName} ( ${next["action_id"]} )`
     } else if (taskName === "undeployment") {
       // find the associated task
       const prev = executionGraph["tasks"].find(
-        (it) => it["task_id"] === task["previous_tasks"][0]
+        it => it["task_id"] === task["previous_tasks"][0]
       )
       taskName = `${taskName} ( ${prev["action_id"]} )`
     }
 
-    if (typeof recordedStatus === "undefined" || taskStatus !== recordedStatus) {
+    if (
+      typeof recordedStatus === "undefined" ||
+      taskStatus !== recordedStatus
+    ) {
       core.info(`Task ${taskName} is now in status ${taskStatus}`)
-      switch(taskStatus) {
-        case 'FAILED': 
+      switch (taskStatus) {
+        case "FAILED":
           core.error(`Task ${taskName} has failed. Error: ${taskError}`)
           break
-        case 'SKIPPED':
+        case "SKIPPED":
           core.warning(`Task ${taskName} has been skipped`)
           break
-        case 'SUCCEEDED':
+        case "SUCCEEDED":
           //TODO: Use coloring to print this in green
           core.info(`Task ${taskName} has finished successfully`)
           break
@@ -509,18 +509,23 @@ export async function loadTargetPlatforms(): Promise<Object> {
  * Loads the event github event configuration from the environment variable if existing
  */
 export async function loadEventConfig(): Promise<Object> {
-
   if (typeof process.env.GITHUB_EVENT_PATH === "undefined") {
-    core.warning("Could not find GITHUB_EVENT_PATH environment variable. Will not have any action event context.")
+    core.warning(
+      "Could not find GITHUB_EVENT_PATH environment variable. Will not have any action event context."
+    )
     return {}
   }
   core.info(`Loading event configuration from ${process.env.GITHUB_EVENT_PATH}`)
   try {
-    eventConfig = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH).toString())
+    eventConfig = JSON.parse(
+      fs.readFileSync(process.env.GITHUB_EVENT_PATH).toString()
+    )
     core.debug(`Loaded config: ${util.inspect(eventConfig)}`)
     return eventConfig
   } catch (err) {
-    core.warning(`Could not read content from ${process.env.GITHUB_EVENT_PATH}. Error: ${err}`)
+    core.warning(
+      `Could not read content from ${process.env.GITHUB_EVENT_PATH}. Error: ${err}`
+    )
     return {}
   }
 }
@@ -582,7 +587,9 @@ export async function getRawReports(
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       // Don't throw error if we cannot fetch a report
-      core.warning(`Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      core.warning(
+        `Received error while fetching reports for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`
+      )
       return []
     } else {
       throw err
@@ -620,7 +627,9 @@ export async function getRawLogs(
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       // Don't throw error if we cannot fetch a log
-      core.warning(`Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`)
+      core.warning(
+        `Received error while fetching logs for task ${taskId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`
+      )
       return null
     } else {
       throw err
@@ -629,11 +638,10 @@ export async function getRawLogs(
 }
 
 export async function loadConfig(): Promise<Config> {
-
-  //TODO: Replace SHA_ARCHIVE with something more meaningful like PR_HEAD_TARBALL or some other syntax. Perhaps something 
-  //      we could do would be to allow to use as variables to the actions any of the data from the GitHub event from the 
-  //      GITHUB_EVENT_PATH file. 
-  //      For the time being I'm using pull_request.head.repo.url plus the ref as the artifact name and reusing shaArchive 
+  //TODO: Replace SHA_ARCHIVE with something more meaningful like PR_HEAD_TARBALL or some other syntax. Perhaps something
+  //      we could do would be to allow to use as variables to the actions any of the data from the GitHub event from the
+  //      GITHUB_EVENT_PATH file.
+  //      For the time being I'm using pull_request.head.repo.url plus the ref as the artifact name and reusing shaArchive
   //      but we need to redo this in the very short term
   let shaArchive
   if (eventConfig) {
@@ -686,7 +694,7 @@ export async function loadConfig(): Promise<Config> {
 
 /*eslint-disable @typescript-eslint/explicit-function-return-type, @typescript-eslint/promise-function-async*/
 //TODO: Enable linter
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 /*eslint-enable */
 
 export async function reset(): Promise<void> {
