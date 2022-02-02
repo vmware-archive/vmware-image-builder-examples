@@ -304,9 +304,11 @@ describe("VIB", () => {
       fixedExecutionGraphId
     )
     expect(executionGraphResult).toBeDefined()
-    expect(executionGraphResult["passed"]).toEqual(true)
-    expect(executionGraphResult["actions"].length).toEqual(1)
-    expect(executionGraphResult["actions"][0]["action_id"]).toEqual("trivy")
+    if (executionGraphResult) {
+      expect(executionGraphResult["passed"]).toEqual(true)
+      expect(executionGraphResult["actions"].length).toEqual(1)
+      expect(executionGraphResult["actions"][0]["action_id"]).toEqual("trivy")
+    }
   })
 
   it("Fetches platforms", async () => {

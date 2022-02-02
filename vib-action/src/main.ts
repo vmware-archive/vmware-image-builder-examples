@@ -146,7 +146,7 @@ export async function runAction(): Promise<any> {
     }
 
     core.info("Processing execution graph result.")
-    if (!result["passed"]) {
+    if (result && !result["passed"]) {
       core.setFailed(
         "Some pipeline tests have failed. Please check the execution graph report for details."
       )
@@ -266,7 +266,7 @@ export async function getExecutionGraph(
 
 export async function getExecutionGraphResult(
   executionGraphId: string
-): Promise<Object> {
+): Promise<Object | null> {
   core.info(
     `Downloading execution graph results from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/report`
   )
@@ -289,12 +289,21 @@ export async function getExecutionGraphResult(
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       if (err.response.status === 404) {
-        core.debug(err.response.data.detail)
-        throw new Error(err.response.data.detail)
+        core.warning(
+          `Coult not find execution graph report for ${executionGraphId}`
+        )
+        return null
       }
-      throw new Error(err.response.data.detail)
+      // Don't throw error if we cannot fetch a report
+      core.warning(
+        `Error fetching execution graph for ${executionGraphId}. Error code: ${err.response.status}. Message: ${err.response.statusText}`
+      )
+      return null
     }
-    throw err
+    core.warning(
+      `Could not fetch execution graph report for ${executionGraphId}. Error: ${err}}`
+    )
+    return null
   }
 }
 
