@@ -1,12 +1,8 @@
 name: Validate
 on:
-  push:
+  pull_request:
     branches:
       - main
-    paths:
-      - 'vib-action/*'
-      - '.github/workflows/validate.yaml'
-  pull_request:
     paths:
       - 'vib-action/*'
       - '.github/workflows/validate.yaml'
@@ -48,8 +44,7 @@ jobs:
     - name: Compare the expected and actual dist/ directories
       run: |
         if [ "$(git diff --ignore-space-at-eol dist/ | wc -l)" -gt "0" ]; then
-          echo "Detected uncommitted changes after build.  See status below:"
-          git diff
+          echo "Detected uncommitted changes after build."
           exit 1
         fi
       id: diff
