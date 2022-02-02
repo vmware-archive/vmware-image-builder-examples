@@ -3,8 +3,13 @@ on:
   pull_request:
     branches:
       - main
+    types:
+      - assigned 
+      - opened 
+      - synchronize 
+      - reopened
     paths:
-      - 'vib-action/*'
+      - 'vib-action/**'
       - '.github/workflows/validate.yaml'
 jobs:
   build:
