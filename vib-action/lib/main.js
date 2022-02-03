@@ -38,7 +38,6 @@ const core = __importStar(require("@actions/core"));
 const path = __importStar(require("path"));
 const axios_1 = __importDefault(require("axios"));
 const fs_1 = __importDefault(require("fs"));
-const sanitize_1 = require("./sanitize");
 const util_1 = __importDefault(require("util"));
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
@@ -468,20 +467,25 @@ function getRawReports(executionGraphId, taskName, taskId) {
         if (typeof process.env.VIB_PUBLIC_URL === "undefined") {
             core.setFailed("VIB_PUBLIC_URL environment variable not found.");
         }
-        core.info(`Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`);
+        core.info(`Downloading raw reports for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`);
         const reports = [];
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const result = response.data;
-            if (result.raw_reports && result.raw_reports.length > 0) {
-                for (const raw_report of result.raw_reports) {
-                    const reportFilename = `${taskName}-${taskId}-report-${(0, sanitize_1.sanitize)(raw_report.id, "-")}`;
-                    //TODO: Can VIB return a hint on the content type?
+            if (result && result.length > 0) {
+                for (const raw_report of result) {
+                    const reportFilename = `${taskId}_${raw_report.filename}`;
                     const reportFile = path.join(getReportsFolder(executionGraphId), `${reportFilename}`);
-                    const binary = Buffer.from(raw_report.raw_report, "base64");
-                    fs_1.default.writeFileSync(reportFile, binary);
+                    // Still need to download the raw content
+                    const writer = fs_1.default.createWriteStream(reportFile);
+                    core.debug(`Downloading raw report from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id} into ${reportFile}`);
+                    const fileResponse = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id}`, {
+                        headers: { Authorization: `Bearer ${apiToken}` },
+                        responseType: "stream",
+                    });
+                    fileResponse.data.pipe(writer);
                     reports.push(reportFile);
                 }
             }
