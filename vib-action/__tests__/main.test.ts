@@ -289,7 +289,7 @@ describe("VIB", () => {
     }
   })
 
-  it("Fetches a raw report ", async () => {
+  it("Fetches a raw report", async () => {
     const reportFiles = await getRawReports(
       fixedExecutionGraphId,
       fixedTaskName,

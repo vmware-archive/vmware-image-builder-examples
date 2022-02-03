@@ -4,7 +4,6 @@ import * as core from "@actions/core"
 import * as path from "path"
 import axios from "axios"
 import fs from "fs"
-import { sanitize } from "./sanitize"
 import util from "util"
 
 const root = process.env.GITHUB_WORKSPACE
@@ -566,7 +565,7 @@ export async function getRawReports(
     core.setFailed("VIB_PUBLIC_URL environment variable not found.")
   }
   core.info(
-    `Downloading results for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`
+    `Downloading raw reports for task ${taskName} from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`
   )
 
   const reports: string[] = []
@@ -575,24 +574,33 @@ export async function getRawReports(
 
   try {
     const response = await vibClient.get(
-      `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/result`,
+      `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`,
       { headers: { Authorization: `Bearer ${apiToken}` } }
     )
     //TODO: Handle response codes
     const result = response.data
-    if (result.raw_reports && result.raw_reports.length > 0) {
-      for (const raw_report of result.raw_reports) {
-        const reportFilename = `${taskName}-${taskId}-report-${sanitize(
-          raw_report.id,
-          "-"
-        )}`
-        //TODO: Can VIB return a hint on the content type?
+    if (result && result.length > 0) {
+      for (const raw_report of result) {
+        const reportFilename = `${taskId}_${raw_report.filename}`
         const reportFile = path.join(
           getReportsFolder(executionGraphId),
           `${reportFilename}`
         )
-        const binary = Buffer.from(raw_report.raw_report, "base64")
-        fs.writeFileSync(reportFile, binary)
+        // Still need to download the raw content
+        const writer = fs.createWriteStream(reportFile)
+        core.debug(
+          `Downloading raw report from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${
+            raw_report.id
+          } into ${reportFile}`
+        )
+        const fileResponse = await vibClient.get(
+          `/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id}`,
+          {
+            headers: { Authorization: `Bearer ${apiToken}` },
+            responseType: "stream",
+          }
+        )
+        fileResponse.data.pipe(writer)
         reports.push(reportFile)
       }
     }
