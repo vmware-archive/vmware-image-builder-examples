@@ -183,7 +183,7 @@ function displayExecutionGraph(executionGraph) {
                     core.error(`Task ${taskName} has failed. Error: ${taskError}`);
                     break;
                 case "SKIPPED":
-                    core.warning(`Task ${taskName} has been skipped`);
+                    core.info(`Task ${taskName} has been skipped`);
                     break;
                 case "SUCCEEDED":
                     //TODO: Use coloring to print this in green
