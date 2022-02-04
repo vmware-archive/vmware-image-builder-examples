@@ -341,7 +341,7 @@ describe("VIB", () => {
     const config = await loadConfig()
     const artifactName = await getArtifactName(config)
     expect(artifactName).toBe(
-      `assets-${process.env.GITHUB_JOB}-${tkgPlatform["kind"]}-${tkgPlatform.version}`
+      `assets-${process.env.GITHUB_JOB}-${tkgPlatform["kind"]}`
     )
   })
 
