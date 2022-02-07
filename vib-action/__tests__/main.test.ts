@@ -40,7 +40,6 @@ describe("VIB", () => {
     jest.spyOn(core, "info").mockImplementation(() => {})
     jest.spyOn(core, "warning").mockImplementation(() => {})
     jest.spyOn(core, "setFailed")
-    process.env["JEST_TESTS"] = "true"
     path.join(root, "logs")
   })
 
