@@ -44,7 +44,6 @@ const core = __importStar(__nccwpck_require__(2186));
 const axios_1 = __importDefault(__nccwpck_require__(6545));
 function newClient(cfg) {
     const instance = axios_1.default.create(cfg);
-    // Add retry handling for retriable errors
     instance.interceptors.response.use(undefined, (err) => __awaiter(this, void 0, void 0, function* () {
         const config = err.config;
         const response = err.response;
@@ -212,10 +211,6 @@ const util_1 = __importDefault(__nccwpck_require__(3837));
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
     : path.join(__dirname, "..");
-//TODO: Perhaps these two should be configurable via input params or env vars
-//const retryCount = constants.HTTP_RETRY_COUNT
-//const retryIntervals = constants.HTTP_RETRY_INTERVALS
-//TODO timeouts in these two clients should be way shorter
 exports.cspClient = clients.newClient({
     baseURL: `${process.env.CSP_API_URL
         ? process.env.CSP_API_URL

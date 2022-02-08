@@ -11,11 +11,6 @@ const root = process.env.GITHUB_WORKSPACE
   ? path.join(process.env.GITHUB_WORKSPACE, ".")
   : path.join(__dirname, "..")
 
-//TODO: Perhaps these two should be configurable via input params or env vars
-//const retryCount = constants.HTTP_RETRY_COUNT
-//const retryIntervals = constants.HTTP_RETRY_INTERVALS
-
-//TODO timeouts in these two clients should be way shorter
 export const cspClient = clients.newClient({
   baseURL: `${
     process.env.CSP_API_URL

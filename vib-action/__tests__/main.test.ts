@@ -15,7 +15,6 @@ import {
   loadConfig,
   loadEventConfig,
   loadTargetPlatforms,
-  prettifyExecutionGraphResult,
   readPipeline,
   reset,
   runAction,

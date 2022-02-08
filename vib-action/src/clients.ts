@@ -4,7 +4,6 @@ import axios, { AxiosError, AxiosInstance, AxiosRequestConfig } from "axios"
 
 export function newClient(cfg: AxiosRequestConfig): AxiosInstance {
   const instance = axios.create(cfg)
-  // Add retry handling for retriable errors
   instance.interceptors.response.use(undefined, async (err: AxiosError) => {
     const config = err.config
     const response = err.response
