@@ -57,3 +57,26 @@ export const DEFAULT_VIB_PUBLIC_URL = "https://cp.bromelia.vmware.com"
  * Default URL to the VMware Cloud Services Platform. This service provides identity access
  */
 export const DEFAULT_CSP_API_URL = "https://console.cloud.vmware.com"
+
+/**
+ * Number of times a failed HTTP request due to timeout should be retried
+ */
+export const HTTP_RETRY_COUNT = 3
+
+/**
+ * Number of seconds that the next request should be delayed for. Array length must match the number of retries.
+ */
+export const HTTP_RETRY_INTERVALS =
+  process.env["JEST_TESTS"] === "true"
+    ? [500, 1000, 2000]
+    : [5000, 10000, 15000]
+
+/**
+ * Retriable status codes
+ */
+export enum RetriableHttpStatus {
+  BAD_GATEWAY = 502,
+  SERVICE_NOT_AVAILABLE = 503,
+  REQUEST_TIMEOUT = 408,
+  TOO_MANY_REQUESTS = 429,
+}
