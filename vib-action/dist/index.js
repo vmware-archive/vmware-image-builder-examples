@@ -237,7 +237,7 @@ let eventConfig;
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         //TODO: Refactor so we don't need to do this check
-        if (process.env["JEST_TESTS"] === "true")
+        if (process.env.JEST_WORKER_ID !== undefined)
             return; // skip running logic when importing class for npm test
         loadTargetPlatforms(); // load target platforms in the background
         yield loadEventConfig();

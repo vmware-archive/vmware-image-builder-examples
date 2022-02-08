@@ -70,7 +70,7 @@ let eventConfig
 
 async function run(): Promise<void> {
   //TODO: Refactor so we don't need to do this check
-  if (process.env["JEST_TESTS"] === "true") return // skip running logic when importing class for npm test
+  if (process.env.JEST_WORKER_ID !== undefined) return // skip running logic when importing class for npm test
 
   loadTargetPlatforms() // load target platforms in the background
   await loadEventConfig()
