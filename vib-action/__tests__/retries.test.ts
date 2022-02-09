@@ -1,16 +1,11 @@
 // eslint-disable-next-line filenames/match-regex
 import * as constants from "../src/constants"
 import * as core from "@actions/core"
-import * as path from "path"
-import fs from "fs"
 import MockAdapter from "axios-mock-adapter"
-import moxios from "moxios"
-import validator from "validator"
 import {
   cspClient,
   getExecutionGraph,
   getToken,
-  loadTargetPlatforms,
   reset,
   vibClient,
 } from "../src/main"

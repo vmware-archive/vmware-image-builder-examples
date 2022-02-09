@@ -80,3 +80,8 @@ export enum RetriableHttpStatus {
   REQUEST_TIMEOUT = 408,
   TOO_MANY_REQUESTS = 429,
 }
+
+/**
+ * Prefix for environment variables that will be used for template substitution in pipelines.
+ */
+export const ENV_VAR_TEMPLATE_PREFIX = "VIB_ENV_"

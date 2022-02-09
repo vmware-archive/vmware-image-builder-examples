@@ -18,6 +18,7 @@ import {
   readPipeline,
   reset,
   runAction,
+  substituteEnvVariables,
 } from "../src/main"
 import fs from "fs"
 import validator from "validator"
@@ -368,6 +369,93 @@ describe("VIB", () => {
     expect(config.shaArchive).toEqual(
       "https://api.github.com/repos/mpermar/vib-action-test/tarball/a-new-branch"
     )
+  })
+
+  it("Replaces environment variables with VIB_ENV_ prefix", async () => {
+    // Clean warnings by setting these vars
+    process.env.GITHUB_SHA = "aacf48f14ed73e4b368ab66abf4742b0e9afae54"
+    process.env.GITHUB_REPOSITORY = "vmware/vib-action"
+    const config = await loadConfig()
+    let pipeline = `
+      {
+        "phases": {
+          "package": {
+            "context": {
+              "resources": {
+                "url": "{VIB_ENV_URL}",
+                "path": "{VIB_ENV_PATH}"
+              }
+            }
+          }
+        }        
+      }
+    `
+    process.env.VIB_ENV_URL = "https://www.github.com/bitnami/charts"
+    process.env.VIB_ENV_PATH = "/bitnami/wordpress"
+
+    pipeline = substituteEnvVariables(config, pipeline)
+    core.debug(`New pipeline: ${pipeline}`)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).toContain(process.env.VIB_ENV_URL)
+    expect(pipeline).toContain(process.env.VIB_ENV_PATH)
+    // verify no warnings. This plays helps trusting below tests too
+    expect(core.warning).toHaveBeenCalledTimes(0)
+  })
+
+  it("Warns of VIB_ENV_ template variables in environment that are not found", async () => {
+    // Clean warnings by setting these vars
+    process.env.GITHUB_SHA = "aacf48f14ed73e4b368ab66abf4742b0e9afae54"
+    process.env.GITHUB_REPOSITORY = "vmware/vib-action"
+    const config = await loadConfig()
+    let pipeline = `
+      {
+        "phases": {
+          "package": {
+            "context": {
+              "resources": {
+                "url": "https://www.github.com/bitnami/charts",
+                "path": "/bitnami/wordpress"
+              }
+            }
+          }
+        }        
+      }
+    `
+    process.env.VIB_ENV_FOO = "foo"
+    process.env.VIB_ENV_BAR = "bar"
+
+    pipeline = substituteEnvVariables(config, pipeline)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).not.toContain(process.env.VIB_ENV_FOO)
+    expect(pipeline).not.toContain(process.env.VIB_ENV_BAR)
+    // verify we also got two warnings
+    expect(core.warning).toHaveBeenCalledTimes(2)
+  })
+
+  it("Warns of VIB_ENV_ template variables found in file but not in environment", async () => {
+    // Clean warnings by setting these vars
+    process.env.GITHUB_SHA = "aacf48f14ed73e4b368ab66abf4742b0e9afae54"
+    process.env.GITHUB_REPOSITORY = "vmware/vib-action"
+    const config = await loadConfig()
+    let pipeline = `
+      {
+        "phases": {
+          "package": {
+            "context": {
+              "resources": {
+                "url": "{VIB_ENV_NOT_FOUND}",
+                "path": "/bitnami/wordpress"
+              }
+            }
+          }
+        }        
+      }
+    `
+    pipeline = substituteEnvVariables(config, pipeline)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).toContain("VIB_ENV_NOT_FOUND")
+    // verify we also got the warning
+    expect(core.warning).toHaveBeenCalledTimes(1)
   })
 
   // TODO: Add all the failure scenarios. Trying to get an execution graph that does not exist, no public url defined, etc.
