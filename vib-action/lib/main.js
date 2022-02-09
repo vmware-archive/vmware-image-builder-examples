@@ -31,8 +31,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = exports.vibClient = exports.cspClient = void 0;
 const artifact = __importStar(require("@actions/artifact"));
+const clients = __importStar(require("./clients"));
 const constants = __importStar(require("./constants"));
 const core = __importStar(require("@actions/core"));
 const path = __importStar(require("path"));
@@ -42,15 +43,14 @@ const util_1 = __importDefault(require("util"));
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
     : path.join(__dirname, "..");
-//TODO timeouts in these two clients should be way shorter
-const cspClient = axios_1.default.create({
+exports.cspClient = clients.newClient({
     baseURL: `${process.env.CSP_API_URL
         ? process.env.CSP_API_URL
         : constants.DEFAULT_CSP_API_URL}`,
-    timeout: 15000,
+    timeout: 10000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
-const vibClient = axios_1.default.create({
+exports.vibClient = clients.newClient({
     baseURL: `${process.env.VIB_PUBLIC_URL
         ? process.env.VIB_PUBLIC_URL
         : constants.DEFAULT_VIB_PUBLIC_URL}`,
@@ -203,7 +203,7 @@ function getExecutionGraph(executionGraphId) {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const executionGraph = response.data;
             displayExecutionGraph(executionGraph);
@@ -212,10 +212,13 @@ function getExecutionGraph(executionGraphId) {
         catch (err) {
             if (axios_1.default.isAxiosError(err) && err.response) {
                 if (err.response.status === 404) {
-                    core.debug(err.response.data.detail);
-                    throw new Error(err.response.data.detail);
+                    const errorMessage = err.response.data
+                        ? err.response.data.detail
+                        : `Could not find execution graph with id ${executionGraphId}`;
+                    core.debug(errorMessage);
+                    throw new Error(errorMessage);
                 }
-                throw new Error(err.response.data.detail);
+                throw err;
             }
             throw err;
         }
@@ -230,7 +233,7 @@ function getExecutionGraphResult(executionGraphId) {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const result = response.data;
             const resultFile = path.join(getFolder(executionGraphId), "result.json");
@@ -265,7 +268,7 @@ function createPipeline(config) {
             const pipeline = yield readPipeline(config);
             core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);
             //TODO: Define and replace different placeholders: e.g. for values, content folders (goss, jmeter), etc.
-            const response = yield vibClient.post("/v1/pipelines", pipeline, {
+            const response = yield exports.vibClient.post("/v1/pipelines", pipeline, {
                 headers: { Authorization: `Bearer ${apiToken}` },
             });
             core.debug(`Got create pipeline response data : ${JSON.stringify(response.data)}, headers: ${util_1.default.inspect(response.headers)}`);
@@ -329,7 +332,7 @@ function getToken(input) {
             return cachedCspToken.access_token;
         }
         try {
-            const response = yield cspClient.post("/csp/gateway/am/api/auth/api-tokens/authorize", `grant_type=refresh_token&api_token=${process.env.CSP_API_TOKEN}`);
+            const response = yield exports.cspClient.post("/csp/gateway/am/api/auth/api-tokens/authorize", `grant_type=refresh_token&api_token=${process.env.CSP_API_TOKEN}`);
             //TODO: Handle response codes
             if (typeof response.data === "undefined" ||
                 typeof response.data.access_token === "undefined") {
@@ -400,7 +403,7 @@ function loadTargetPlatforms() {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get("/v1/target-platforms", {
+            const response = yield exports.vibClient.get("/v1/target-platforms", {
                 headers: { Authorization: `Bearer ${apiToken}` },
             });
             //TODO: Handle response codes
@@ -471,7 +474,7 @@ function getRawReports(executionGraphId, taskName, taskId) {
         const reports = [];
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const result = response.data;
             if (result && result.length > 0) {
@@ -481,7 +484,7 @@ function getRawReports(executionGraphId, taskName, taskId) {
                     // Still need to download the raw content
                     const writer = fs_1.default.createWriteStream(reportFile);
                     core.debug(`Downloading raw report from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id} into ${reportFile}`);
-                    const fileResponse = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id}`, {
+                    const fileResponse = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id}`, {
                         headers: { Authorization: `Bearer ${apiToken}` },
                         responseType: "stream",
                     });
@@ -514,7 +517,7 @@ function getRawLogs(executionGraphId, taskName, taskId) {
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         core.debug(`Will store logs at ${logFile}`);
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             fs_1.default.writeFileSync(logFile, response.data);
             return logFile;
