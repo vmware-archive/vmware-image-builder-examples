@@ -712,7 +712,12 @@ export async function loadConfig(): Promise<Config> {
   //      but we need to redo this in the very short term
   let shaArchive
   if (eventConfig) {
-    shaArchive = `${eventConfig["pull_request"]["head"]["repo"]["url"]}/tarball/${eventConfig["pull_request"]["head"]["ref"]}`
+    if (eventConfig["pull_request"]) {
+      shaArchive = `${eventConfig["pull_request"]["head"]["repo"]["url"]}/tarball/${eventConfig["pull_request"]["head"]["ref"]}`
+    } else {
+      // not a pull request. Try pulling tarball from master
+      shaArchive = `${eventConfig["repository"]["url"]}/tarball/${eventConfig["repository"]["master_branch"]}`
+    }
   } else {
     // fall back to the old logic if needed
     // Warn on rqeuirements for HELM_CHART variable replacement
