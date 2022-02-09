@@ -1,4 +1,5 @@
 import * as artifact from "@actions/artifact"
+import * as clients from "./clients"
 import * as constants from "./constants"
 import * as core from "@actions/core"
 import * as path from "path"
@@ -10,18 +11,17 @@ const root = process.env.GITHUB_WORKSPACE
   ? path.join(process.env.GITHUB_WORKSPACE, ".")
   : path.join(__dirname, "..")
 
-//TODO timeouts in these two clients should be way shorter
-const cspClient = axios.create({
+export const cspClient = clients.newClient({
   baseURL: `${
     process.env.CSP_API_URL
       ? process.env.CSP_API_URL
       : constants.DEFAULT_CSP_API_URL
   }`,
-  timeout: 15000,
+  timeout: 10000,
   headers: { "Content-Type": "application/x-www-form-urlencoded" },
 })
 
-const vibClient = axios.create({
+export const vibClient = clients.newClient({
   baseURL: `${
     process.env.VIB_PUBLIC_URL
       ? process.env.VIB_PUBLIC_URL
@@ -254,10 +254,13 @@ export async function getExecutionGraph(
   } catch (err) {
     if (axios.isAxiosError(err) && err.response) {
       if (err.response.status === 404) {
-        core.debug(err.response.data.detail)
-        throw new Error(err.response.data.detail)
+        const errorMessage = err.response.data
+          ? err.response.data.detail
+          : `Could not find execution graph with id ${executionGraphId}`
+        core.debug(errorMessage)
+        throw new Error(errorMessage)
       }
-      throw new Error(err.response.data.detail)
+      throw err
     }
     throw err
   }
