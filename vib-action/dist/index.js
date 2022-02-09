@@ -1,13 +1,91 @@
 require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 1501:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    Object.defineProperty(o, k2, { enumerable: true, get: function() { return m[k]; } });
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.newClient = void 0;
+const constants = __importStar(__nccwpck_require__(5105));
+const core = __importStar(__nccwpck_require__(2186));
+const axios_1 = __importDefault(__nccwpck_require__(6545));
+function newClient(cfg) {
+    const instance = axios_1.default.create(cfg);
+    instance.interceptors.response.use(undefined, (err) => __awaiter(this, void 0, void 0, function* () {
+        const config = err.config;
+        const response = err.response;
+        if ((response &&
+            response.status &&
+            Object.values(constants.RetriableHttpStatus).includes(response.status)) ||
+            err.code === "ECONNABORTED" ||
+            err.message === "Network Error") {
+            // Not sure if this message is trustable or just something moxios made up
+            core.debug(`Error: ${JSON.stringify(err)}`);
+            const currentState = config["vib-retries"] || {};
+            currentState.retryCount = currentState.retryCount || 0;
+            config["vib-retries"] = currentState;
+            const delay = constants.HTTP_RETRY_INTERVALS[currentState.retryCount];
+            if (currentState.retryCount >= constants.HTTP_RETRY_COUNT) {
+                return Promise.reject(new Error(`Could not execute operation. Retried ${currentState.retryCount} times.`));
+            }
+            else {
+                core.info(`Request to ${config.url} failed. Retry: ${currentState.retryCount}. Waiting ${delay}`);
+                currentState.retryCount += 1;
+            }
+            config.transformRequest = [data => data];
+            return new Promise(resolve => setTimeout(() => resolve(instance(config)), delay));
+        }
+        else {
+            return Promise.reject(err);
+        }
+    }));
+    return instance;
+}
+exports.newClient = newClient;
+//# sourceMappingURL=clients.js.map
+
+/***/ }),
+
 /***/ 5105:
 /***/ ((__unused_webpack_module, exports) => {
 
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.RetriableHttpStatus = exports.HTTP_RETRY_INTERVALS = exports.HTTP_RETRY_COUNT = exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -60,6 +138,26 @@ exports.DEFAULT_VIB_PUBLIC_URL = "https://cp.bromelia.vmware.com";
  * Default URL to the VMware Cloud Services Platform. This service provides identity access
  */
 exports.DEFAULT_CSP_API_URL = "https://console.cloud.vmware.com";
+/**
+ * Number of times a failed HTTP request due to timeout should be retried
+ */
+exports.HTTP_RETRY_COUNT = 3;
+/**
+ * Number of seconds that the next request should be delayed for. Array length must match the number of retries.
+ */
+exports.HTTP_RETRY_INTERVALS = process.env["JEST_TESTS"] === "true"
+    ? [500, 1000, 2000]
+    : [5000, 10000, 15000];
+/**
+ * Retriable status codes
+ */
+var RetriableHttpStatus;
+(function (RetriableHttpStatus) {
+    RetriableHttpStatus[RetriableHttpStatus["BAD_GATEWAY"] = 502] = "BAD_GATEWAY";
+    RetriableHttpStatus[RetriableHttpStatus["SERVICE_NOT_AVAILABLE"] = 503] = "SERVICE_NOT_AVAILABLE";
+    RetriableHttpStatus[RetriableHttpStatus["REQUEST_TIMEOUT"] = 408] = "REQUEST_TIMEOUT";
+    RetriableHttpStatus[RetriableHttpStatus["TOO_MANY_REQUESTS"] = 429] = "TOO_MANY_REQUESTS";
+})(RetriableHttpStatus = exports.RetriableHttpStatus || (exports.RetriableHttpStatus = {}));
 //# sourceMappingURL=constants.js.map
 
 /***/ }),
@@ -101,8 +199,9 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = exports.vibClient = exports.cspClient = void 0;
 const artifact = __importStar(__nccwpck_require__(2605));
+const clients = __importStar(__nccwpck_require__(1501));
 const constants = __importStar(__nccwpck_require__(5105));
 const core = __importStar(__nccwpck_require__(2186));
 const path = __importStar(__nccwpck_require__(1017));
@@ -112,15 +211,14 @@ const util_1 = __importDefault(__nccwpck_require__(3837));
 const root = process.env.GITHUB_WORKSPACE
     ? path.join(process.env.GITHUB_WORKSPACE, ".")
     : path.join(__dirname, "..");
-//TODO timeouts in these two clients should be way shorter
-const cspClient = axios_1.default.create({
+exports.cspClient = clients.newClient({
     baseURL: `${process.env.CSP_API_URL
         ? process.env.CSP_API_URL
         : constants.DEFAULT_CSP_API_URL}`,
-    timeout: 15000,
+    timeout: 10000,
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
 });
-const vibClient = axios_1.default.create({
+exports.vibClient = clients.newClient({
     baseURL: `${process.env.VIB_PUBLIC_URL
         ? process.env.VIB_PUBLIC_URL
         : constants.DEFAULT_VIB_PUBLIC_URL}`,
@@ -273,7 +371,7 @@ function getExecutionGraph(executionGraphId) {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const executionGraph = response.data;
             displayExecutionGraph(executionGraph);
@@ -282,10 +380,13 @@ function getExecutionGraph(executionGraphId) {
         catch (err) {
             if (axios_1.default.isAxiosError(err) && err.response) {
                 if (err.response.status === 404) {
-                    core.debug(err.response.data.detail);
-                    throw new Error(err.response.data.detail);
+                    const errorMessage = err.response.data
+                        ? err.response.data.detail
+                        : `Could not find execution graph with id ${executionGraphId}`;
+                    core.debug(errorMessage);
+                    throw new Error(errorMessage);
                 }
-                throw new Error(err.response.data.detail);
+                throw err;
             }
             throw err;
         }
@@ -300,7 +401,7 @@ function getExecutionGraphResult(executionGraphId) {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/report`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const result = response.data;
             const resultFile = path.join(getFolder(executionGraphId), "result.json");
@@ -335,7 +436,7 @@ function createPipeline(config) {
             const pipeline = yield readPipeline(config);
             core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);
             //TODO: Define and replace different placeholders: e.g. for values, content folders (goss, jmeter), etc.
-            const response = yield vibClient.post("/v1/pipelines", pipeline, {
+            const response = yield exports.vibClient.post("/v1/pipelines", pipeline, {
                 headers: { Authorization: `Bearer ${apiToken}` },
             });
             core.debug(`Got create pipeline response data : ${JSON.stringify(response.data)}, headers: ${util_1.default.inspect(response.headers)}`);
@@ -399,7 +500,7 @@ function getToken(input) {
             return cachedCspToken.access_token;
         }
         try {
-            const response = yield cspClient.post("/csp/gateway/am/api/auth/api-tokens/authorize", `grant_type=refresh_token&api_token=${process.env.CSP_API_TOKEN}`);
+            const response = yield exports.cspClient.post("/csp/gateway/am/api/auth/api-tokens/authorize", `grant_type=refresh_token&api_token=${process.env.CSP_API_TOKEN}`);
             //TODO: Handle response codes
             if (typeof response.data === "undefined" ||
                 typeof response.data.access_token === "undefined") {
@@ -470,7 +571,7 @@ function loadTargetPlatforms() {
         }
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get("/v1/target-platforms", {
+            const response = yield exports.vibClient.get("/v1/target-platforms", {
                 headers: { Authorization: `Bearer ${apiToken}` },
             });
             //TODO: Handle response codes
@@ -541,7 +642,7 @@ function getRawReports(executionGraphId, taskName, taskId) {
         const reports = [];
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             const result = response.data;
             if (result && result.length > 0) {
@@ -551,7 +652,7 @@ function getRawReports(executionGraphId, taskName, taskId) {
                     // Still need to download the raw content
                     const writer = fs_1.default.createWriteStream(reportFile);
                     core.debug(`Downloading raw report from ${getDownloadVibPublicUrl()}/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id} into ${reportFile}`);
-                    const fileResponse = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id}`, {
+                    const fileResponse = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/raw-reports/${raw_report.id}`, {
                         headers: { Authorization: `Bearer ${apiToken}` },
                         responseType: "stream",
                     });
@@ -584,7 +685,7 @@ function getRawLogs(executionGraphId, taskName, taskId) {
         const apiToken = yield getToken({ timeout: constants.CSP_TIMEOUT });
         core.debug(`Will store logs at ${logFile}`);
         try {
-            const response = yield vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`, { headers: { Authorization: `Bearer ${apiToken}` } });
+            const response = yield exports.vibClient.get(`/v1/execution-graphs/${executionGraphId}/tasks/${taskId}/logs/raw`, { headers: { Authorization: `Bearer ${apiToken}` } });
             //TODO: Handle response codes
             fs_1.default.writeFileSync(logFile, response.data);
             return logFile;

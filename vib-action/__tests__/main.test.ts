@@ -37,7 +37,7 @@ describe("VIB", () => {
     // mock all output so that there is less noise when running tests
     //jest.spyOn(console, 'log').mockImplementation(() => {})
     //jest.spyOn(core, 'debug').mockImplementation(() => {})
-    jest.spyOn(core, "info").mockImplementation(() => {})
+    //jest.spyOn(core, "info").mockImplementation(() => {})
     jest.spyOn(core, "warning").mockImplementation(() => {})
     jest.spyOn(core, "setFailed")
     path.join(root, "logs")

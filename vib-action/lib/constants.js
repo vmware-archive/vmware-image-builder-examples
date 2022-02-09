@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.RetriableHttpStatus = exports.HTTP_RETRY_INTERVALS = exports.HTTP_RETRY_COUNT = exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -53,4 +53,24 @@ exports.DEFAULT_VIB_PUBLIC_URL = "https://cp.bromelia.vmware.com";
  * Default URL to the VMware Cloud Services Platform. This service provides identity access
  */
 exports.DEFAULT_CSP_API_URL = "https://console.cloud.vmware.com";
+/**
+ * Number of times a failed HTTP request due to timeout should be retried
+ */
+exports.HTTP_RETRY_COUNT = 3;
+/**
+ * Number of seconds that the next request should be delayed for. Array length must match the number of retries.
+ */
+exports.HTTP_RETRY_INTERVALS = process.env["JEST_TESTS"] === "true"
+    ? [500, 1000, 2000]
+    : [5000, 10000, 15000];
+/**
+ * Retriable status codes
+ */
+var RetriableHttpStatus;
+(function (RetriableHttpStatus) {
+    RetriableHttpStatus[RetriableHttpStatus["BAD_GATEWAY"] = 502] = "BAD_GATEWAY";
+    RetriableHttpStatus[RetriableHttpStatus["SERVICE_NOT_AVAILABLE"] = 503] = "SERVICE_NOT_AVAILABLE";
+    RetriableHttpStatus[RetriableHttpStatus["REQUEST_TIMEOUT"] = 408] = "REQUEST_TIMEOUT";
+    RetriableHttpStatus[RetriableHttpStatus["TOO_MANY_REQUESTS"] = 429] = "TOO_MANY_REQUESTS";
+})(RetriableHttpStatus = exports.RetriableHttpStatus || (exports.RetriableHttpStatus = {}));
 //# sourceMappingURL=constants.js.map
