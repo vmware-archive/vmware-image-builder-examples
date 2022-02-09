@@ -85,7 +85,7 @@ exports.newClient = newClient;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.RetriableHttpStatus = exports.HTTP_RETRY_INTERVALS = exports.HTTP_RETRY_COUNT = exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
+exports.ENV_VAR_TEMPLATE_PREFIX = exports.RetriableHttpStatus = exports.HTTP_RETRY_INTERVALS = exports.HTTP_RETRY_COUNT = exports.DEFAULT_CSP_API_URL = exports.DEFAULT_VIB_PUBLIC_URL = exports.DEFAULT_TARGET_PLATFORM = exports.EndStates = exports.CSP_TIMEOUT = exports.DEFAULT_EXECUTION_GRAPH_CHECK_INTERVAL = exports.DEFAULT_EXECUTION_GRAPH_GLOBAL_TIMEOUT = exports.DEFAULT_PIPELINE = exports.DEFAULT_BASE_FOLDER = void 0;
 /**
  * Base folder where VIB content can be found
  *
@@ -158,6 +158,10 @@ var RetriableHttpStatus;
     RetriableHttpStatus[RetriableHttpStatus["REQUEST_TIMEOUT"] = 408] = "REQUEST_TIMEOUT";
     RetriableHttpStatus[RetriableHttpStatus["TOO_MANY_REQUESTS"] = 429] = "TOO_MANY_REQUESTS";
 })(RetriableHttpStatus = exports.RetriableHttpStatus || (exports.RetriableHttpStatus = {}));
+/**
+ * Prefix for environment variables that will be used for template substitution in pipelines.
+ */
+exports.ENV_VAR_TEMPLATE_PREFIX = "VIB_ENV_";
 //# sourceMappingURL=constants.js.map
 
 /***/ }),
@@ -199,7 +203,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = exports.vibClient = exports.cspClient = void 0;
+exports.reset = exports.loadConfig = exports.getRawLogs = exports.getRawReports = exports.loadEventConfig = exports.loadTargetPlatforms = exports.getLogsFolder = exports.loadAllData = exports.getToken = exports.substituteEnvVariables = exports.readPipeline = exports.createPipeline = exports.getExecutionGraphResult = exports.getExecutionGraph = exports.displayExecutionGraph = exports.getArtifactName = exports.runAction = exports.vibClient = exports.cspClient = void 0;
 const artifact = __importStar(__nccwpck_require__(2605));
 const clients = __importStar(__nccwpck_require__(1501));
 const constants = __importStar(__nccwpck_require__(5105));
@@ -470,7 +474,7 @@ function readPipeline(config) {
                 core.setFailed(`Pipeline ${config.pipeline} expects SHA_ARCHIVE variable but either GITHUB_REPOSITORY or GITHUB_SHA cannot be found on environment.`);
             }
         }
-        //TODO: Add tests for default target platform input variable
+        // Keeping this code block that deals with TARGET_PLATFORM for backwards compatibility for the time being
         if (config.targetPlatform) {
             pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform);
         }
@@ -481,11 +485,41 @@ function readPipeline(config) {
                 pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, constants.DEFAULT_TARGET_PLATFORM);
             }
         }
+        // Replaces the above. Generic template var substitution based in environment variables
+        pipeline = substituteEnvVariables(config, pipeline);
         core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);
         return pipeline;
     });
 }
 exports.readPipeline = readPipeline;
+function substituteEnvVariables(config, pipeline) {
+    // More generic templating approach. We try replacing any environment var starting with VIB_ENV_
+    for (const property in process.env) {
+        if (property && property.startsWith(constants.ENV_VAR_TEMPLATE_PREFIX)) {
+            const propertyValue = process.env[property];
+            if (propertyValue) {
+                pipeline = replaceVariable(config, pipeline, property, propertyValue);
+            }
+        }
+    }
+    // Warn about all unsubstituted variables
+    const unsubstituted = [...pipeline.matchAll(/\{([^} ]+)\}/g)];
+    for (const [key] of unsubstituted) {
+        core.warning(`Pipeline ${config.pipeline} expects ${key} but the matching VIB_ENV_ template variable was not found in environmnt.`);
+    }
+    return pipeline;
+}
+exports.substituteEnvVariables = substituteEnvVariables;
+function replaceVariable(config, pipeline, variable, value) {
+    if (!pipeline.includes(`{${variable}}`)) {
+        core.warning(`Environment variable ${variable} is set but is not used within pipeline ${config.pipeline}`);
+    }
+    else {
+        core.info(`Substituting variable ${variable} in ${config.pipeline}`);
+        pipeline = pipeline.replace(new RegExp(`{${variable}}`, "g"), value);
+    }
+    return pipeline;
+}
 function getToken(input) {
     return __awaiter(this, void 0, void 0, function* () {
         if (typeof process.env.CSP_API_TOKEN === "undefined") {
