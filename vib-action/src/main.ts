@@ -363,7 +363,7 @@ export async function readPipeline(config: Config): Promise<string> {
     }
   }
 
-  //TODO: Add tests for default target platform input variable
+  // Keeping this code block that deals with TARGET_PLATFORM for backwards compatibility for the time being
   if (config.targetPlatform) {
     pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform)
   } else {
@@ -381,8 +381,51 @@ export async function readPipeline(config: Config): Promise<string> {
     }
   }
 
+  // Replaces the above. Generic template var substitution based in environment variables
+  pipeline = substituteEnvVariables(config, pipeline)
   core.debug(`Sending pipeline: ${util.inspect(pipeline)}`)
 
+  return pipeline
+}
+
+export function substituteEnvVariables(
+  config: Config,
+  pipeline: string
+): string {
+  // More generic templating approach. We try replacing any environment var starting with VIB_ENV_
+  for (const property in process.env) {
+    if (property && property.startsWith(constants.ENV_VAR_TEMPLATE_PREFIX)) {
+      const propertyValue = process.env[property]
+      if (propertyValue) {
+        pipeline = replaceVariable(config, pipeline, property, propertyValue)
+      }
+    }
+  }
+
+  // Warn about all unsubstituted variables
+  const unsubstituted = [...pipeline.matchAll(/\{([^} ]+)\}/g)]
+  for (const [key] of unsubstituted) {
+    core.warning(
+      `Pipeline ${config.pipeline} expects ${key} but the matching VIB_ENV_ template variable was not found in environmnt.`
+    )
+  }
+  return pipeline
+}
+
+function replaceVariable(
+  config: Config,
+  pipeline: string,
+  variable: string,
+  value: string
+): string {
+  if (!pipeline.includes(`{${variable}}`)) {
+    core.warning(
+      `Environment variable ${variable} is set but is not used within pipeline ${config.pipeline}`
+    )
+  } else {
+    core.info(`Substituting variable ${variable} in ${config.pipeline}`)
+    pipeline = pipeline.replace(new RegExp(`{${variable}}`, "g"), value)
+  }
   return pipeline
 }
 
