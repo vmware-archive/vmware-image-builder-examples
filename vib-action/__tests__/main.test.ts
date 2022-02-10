@@ -458,6 +458,85 @@ describe("VIB", () => {
     expect(core.warning).toHaveBeenCalledTimes(1)
   })
 
+  it("Replaces environment variables with VIB_ENV_ prefix with no prefix within file", async () => {
+    // We do also support an abbreviated form where the user does not have to write VIB_ENV_ in their pipelines
+
+    // Clean warnings by setting these vars
+    process.env.GITHUB_SHA = "aacf48f14ed73e4b368ab66abf4742b0e9afae54"
+    process.env.GITHUB_REPOSITORY = "vmware/vib-action"
+    const config = await loadConfig()
+    let pipeline = `
+      {
+        "phases": {
+          "package": {
+            "context": {
+              "resources": {
+                "url": "{URL}",
+                "path": "{PATH}"
+              }
+            }
+          }
+        }        
+      }
+    `
+    process.env.VIB_ENV_URL = "https://www.github.com/bitnami/charts"
+    process.env.VIB_ENV_PATH = "/bitnami/wordpress"
+
+    pipeline = substituteEnvVariables(config, pipeline)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).toContain(process.env.VIB_ENV_URL) // matches the URL var
+    expect(pipeline).toContain(process.env.VIB_ENV_PATH) // matches the PATH
+    // verify no warnings. This plays helps trusting below tests too
+    expect(core.warning).toHaveBeenCalledTimes(0)
+  })
+
+  it("Warns of VIB_ENV_ template variables found in file but not in environment when using no prefix", async () => {
+    // Clean warnings by setting these vars
+    process.env.GITHUB_SHA = "aacf48f14ed73e4b368ab66abf4742b0e9afae54"
+    process.env.GITHUB_REPOSITORY = "vmware/vib-action"
+    const config = await loadConfig()
+    let pipeline = `
+      {
+        "phases": {
+          "package": {
+            "context": {
+              "resources": {
+                "url": "{NOT_FOUND}", 
+                "path": "/bitnami/wordpress"
+              }
+            }
+          }
+        }        
+      }
+    `
+    pipeline = substituteEnvVariables(config, pipeline)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).toContain("NOT_FOUND") // resolves to env variable VIB_ENV_NOT_FOUND that does not exist
+    // verify we also got the warning
+    expect(core.warning).toHaveBeenCalledTimes(1)
+  })
+
+  it("Substitutes TARGET_PLATFORM with VIB_ENV_ variable", async () => {
+    // Clean warnings by setting these vars
+    process.env.GITHUB_SHA = "aacf48f14ed73e4b368ab66abf4742b0e9afae54"
+    process.env.GITHUB_REPOSITORY = "vmware/vib-action"
+    process.env.VIB_ENV_TARGET_PLATFORM = "7b13a7bb-011c-474f-ad71-8152fc321b9e"
+    const config = await loadConfig()
+    let pipeline = `
+      "target_platform": {
+        "target_platform_id": "{TARGET_PLATFORM}",
+        "size": {
+          "name": "M4",
+          "worker_nodes_instance_count": 2
+        }
+      }
+    `
+    pipeline = substituteEnvVariables(config, pipeline)
+    expect(pipeline).toBeDefined()
+    expect(pipeline).toContain(process.env.VIB_ENV_TARGET_PLATFORM)
+    expect(core.warning).toHaveBeenCalledTimes(0)
+  })
+
   // TODO: Add all the failure scenarios. Trying to get an execution graph that does not exist, no public url defined, etc.
   it("Runs the GitHub action and succeeds", async () => {
     const executionGraph = await runAction()
