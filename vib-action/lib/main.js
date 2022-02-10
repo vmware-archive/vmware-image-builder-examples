@@ -306,13 +306,6 @@ function readPipeline(config) {
         if (config.targetPlatform) {
             pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform);
         }
-        else {
-            if (pipeline.includes("{TARGET_PLATFORM}")) {
-                core.warning(`Pipeline ${config.pipeline} expects TARGET_PLATFORM variable but could not be found on environment.`);
-                core.warning(`Defaulting to target platform${constants.DEFAULT_TARGET_PLATFORM}`);
-                pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, constants.DEFAULT_TARGET_PLATFORM);
-            }
-        }
         // Replaces the above. Generic template var substitution based in environment variables
         pipeline = substituteEnvVariables(config, pipeline);
         core.debug(`Sending pipeline: ${util_1.default.inspect(pipeline)}`);

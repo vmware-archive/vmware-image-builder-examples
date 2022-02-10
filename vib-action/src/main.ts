@@ -366,19 +366,6 @@ export async function readPipeline(config: Config): Promise<string> {
   // Keeping this code block that deals with TARGET_PLATFORM for backwards compatibility for the time being
   if (config.targetPlatform) {
     pipeline = pipeline.replace(/{TARGET_PLATFORM}/g, config.targetPlatform)
-  } else {
-    if (pipeline.includes("{TARGET_PLATFORM}")) {
-      core.warning(
-        `Pipeline ${config.pipeline} expects TARGET_PLATFORM variable but could not be found on environment.`
-      )
-      core.warning(
-        `Defaulting to target platform${constants.DEFAULT_TARGET_PLATFORM}`
-      )
-      pipeline = pipeline.replace(
-        /{TARGET_PLATFORM}/g,
-        constants.DEFAULT_TARGET_PLATFORM
-      )
-    }
   }
 
   // Replaces the above. Generic template var substitution based in environment variables
