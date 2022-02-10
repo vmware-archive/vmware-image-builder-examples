@@ -418,13 +418,21 @@ function replaceVariable(
   variable: string,
   value: string
 ): string {
-  if (!pipeline.includes(`{${variable}}`)) {
+  const shortVariable = variable.substring(
+    constants.ENV_VAR_TEMPLATE_PREFIX.length
+  )
+  if (
+    !pipeline.includes(`{${variable}}`) &&
+    !pipeline.includes(`{${shortVariable}}`)
+  ) {
     core.warning(
       `Environment variable ${variable} is set but is not used within pipeline ${config.pipeline}`
     )
   } else {
     core.info(`Substituting variable ${variable} in ${config.pipeline}`)
     pipeline = pipeline.replace(new RegExp(`{${variable}}`, "g"), value)
+    // we also support not using the VIB_ENV_ prefix for expressivity and coping with hypothetic future product naming changes
+    pipeline = pipeline.replace(new RegExp(`{${shortVariable}}`, "g"), value)
   }
   return pipeline
 }
