@@ -769,7 +769,7 @@ export async function reset(): Promise<void> {
   targetPlatforms = {}
 }
 
-function printEnv(): Promise<void> {
+function printEnv(): void {
   Object.keys(process.env)
     .sort()
     .forEach(function (name) {

@@ -801,6 +801,14 @@ function reset() {
     });
 }
 exports.reset = reset;
+function printEnv() {
+    Object.keys(process.env)
+        .sort()
+        .forEach(function (name) {
+        core.debug(`${name}=${process.env[name]}`);
+    });
+}
+printEnv();
 run();
 //# sourceMappingURL=main.js.map
 
