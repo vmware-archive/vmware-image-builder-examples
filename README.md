@@ -1,6 +1,7 @@
 # This repository is no longer actively maintained by VMware, Inc.
 
-> :warning: This repository has been archived. The GitHub Action that allows to interact with the VMware Image Builder service from VMware is now available at [https://github.com/vmware-labs/vmware-image-builder-action](https://github.com/vmware-labs/vmware-image-builder-action).
+> :warning: This repository has been archived.
+> The GitHub Action that allows to interact with the VMware Image Builder service from VMware is now available at [https://github.com/vmware-labs/vmware-image-builder-action](https://github.com/vmware-labs/vmware-image-builder-action).
 
 ## Overview
 
